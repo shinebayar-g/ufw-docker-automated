@@ -68,7 +68,7 @@ Then install the docker SDK for python by running: `pip install docker` and you'
 
 You may want to run this python script as background process and make it runnable on system boot to make sense of it. To do that, you can create new *systemd* service entry.
 
-Create and open new file on the following path `/lib/systemd/system/ufw-docker-automated.service`
+Create and open new file on the following path `/lib/systemd/system/ufw-docker-automated.service` and copy the following content, don't forget to update the script path.
 
 ```
 [Unit]
