@@ -7,7 +7,7 @@ This conflicts with Ubuntu/Debian's `ufw` firewall manager and makes it useless.
 To fix this issue lot of people [argued](https://github.com/docker/for-linux/issues/690) that it's either docker's problem or not. Nevertheless docker didn't "fix" the issue.
 Fortunately some smart people found the solution to this problem and my favorite one is [ufw-docker](https://github.com/chaifeng/ufw-docker). You can read more about it on the project's readme.
 
-Original **ufw-docker** project is very easy to use, but requires manual work.
+Original **ufw-docker** project is very easy to use, but requires manual work and doesn't track container IP changes. If original container's IP changes somehow, your rule will be invalid.
 To make it automated I hacked together some crap and it actually works. Now if you want to manage your docker container's firewall with your favorite tool `ufw` all you have to do is run your container with `UFW_MANAGED=TRUE` label. For example: `docker run -d -p 8080:80 -l UFW_MANAGED=TRUE nginx:alpine` 
 
 
