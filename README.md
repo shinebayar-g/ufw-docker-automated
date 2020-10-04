@@ -2,7 +2,7 @@
 Manage docker containers firewall with UFW!
 
 If you use docker, you may know docker's publish port function (for example: `docker -p 8080:80` ) directly talks to **iptables** and update rules accordingly.
-This conflicts with Ubuntu/Debian's `ufw` firewall manager and makes it useless. (Same on Centos/Redhat/Fedora's `firewalld`)
+This conflicts with Ubuntu/Debian's `ufw` firewall manager and makes it useless. (Same on Centos/Redhat/Fedora's `firewalld`) In other words, ufw doesn't know about their secret talk, and only do what he knows. This creates a big confusion around UFW & Docker firewall issue.
 
 To fix this issue lot of people [argued](https://github.com/docker/for-linux/issues/690) that it's either docker's problem or not. Nevertheless docker didn't "fix" the issue.
 Fortunately some smart people found the solution to this problem and my favorite one is [ufw-docker](https://github.com/chaifeng/ufw-docker). You can read more about it on the project's readme.
