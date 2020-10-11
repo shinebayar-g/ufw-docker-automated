@@ -10,13 +10,23 @@ def manage_ufw():
 
         event_type = event.get('status')
 
+        # container network is attached on start or stop event
         if event_type == 'start' or event_type == 'kill':
             container = client.containers.get(event['id'])
-            container_ip = container.attrs['NetworkSettings']['IPAddress']
-            container_port_dict = container.attrs['NetworkSettings']['Ports'].items()
+            container_network = container.attrs['HostConfig']['NetworkMode']
+            container_ip = None
+            container_port_num = None
+            container_port_protocol = None
             ufw_managed = None
-            port_num = None
-            port_protocol = None
+
+            container_port_dict = container.attrs['NetworkSettings']['Ports'].items()
+
+            if container_network != 'default':
+                # compose network
+                container_ip = container.attrs['NetworkSettings']['Networks'][container_network]['IPAddress']
+            else:
+                # default network
+                container_ip = container.attrs['NetworkSettings']['Networks']['bridge']['IPAddress']
 
             if 'UFW_MANAGED' in container.labels:
                 ufw_managed = container.labels.get('UFW_MANAGED').capitalize()
@@ -24,18 +34,18 @@ def manage_ufw():
             if ufw_managed == 'True':
                 for key, value in container_port_dict:
                     if value:
-                        port_num = list(key.split("/"))[0]
-                        port_protocol = list(key.split("/"))[1]
+                        container_port_num = list(key.split("/"))[0]
+                        container_port_protocol = list(key.split("/"))[1]
 
             if event_type == 'start' and ufw_managed == 'True':
                 for key, value in container_port_dict:
                     if value:
-                        port_num = list(key.split("/"))[0]
-                        port_protocol = list(key.split("/"))[1]
-                        print(f"Adding UFW rule: {port_num}/{port_protocol} of container {container.name}")
-                        subprocess.run([f"sudo ufw route allow proto {port_protocol} \
+                        container_port_num = list(key.split("/"))[0]
+                        container_port_protocol = list(key.split("/"))[1]
+                        print(f"Adding UFW rule: {container_port_num}/{container_port_protocol} of container {container.name}")
+                        subprocess.run([f"sudo ufw route allow proto {container_port_protocol} \
                                             from any to {container_ip} \
-                                            port {port_num}"],
+                                            port {container_port_num}"],
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                        shell=True)
 
@@ -53,7 +63,7 @@ def manage_ufw():
                         shell=True)
 
                     ufw_num = ufw_status.stdout.strip().split("\n")[0]
-                    print(f"Cleaning UFW rule: {port_num}/{port_protocol} of container {container.name}")
+                    print(f"Cleaning UFW rule: {container_port_num}/{container_port_protocol} of container {container.name}")
                     ufw_delete = subprocess.run([f"yes y | sudo ufw delete {ufw_num}"],
                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                             shell=True)
