@@ -12,7 +12,11 @@ def manage_ufw():
 
         # container network is attached on start or stop event
         if event_type == 'start' or event_type == 'kill':
-            container = client.containers.get(event['id'])
+            container = None
+            try:
+                container = client.containers.get(event['id'])
+            except docker.errors.NotFound as e:
+                continue
             container_network = container.attrs['HostConfig']['NetworkMode']
             container_ip = None
             container_port_num = None
