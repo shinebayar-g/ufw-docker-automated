@@ -8,7 +8,9 @@ To fix this issue lot of people [argued](https://github.com/docker/for-linux/iss
 Fortunately some smart people found the solution to this problem and my favorite one is [ufw-docker](https://github.com/chaifeng/ufw-docker). You can read more about it on the project's readme.
 
 Original **ufw-docker** project is very easy to use, but requires manual work and doesn't track container IP changes. If original container's IP changes somehow, your rule will be invalid.
-To make it automated I hacked together some crap and it actually works. Now if you want to manage your docker container's firewall with your favorite tool `ufw` all you have to do is run your container with `UFW_MANAGED=TRUE` label. For example: `docker run -d -p 8080:80 -l UFW_MANAGED=TRUE nginx:alpine` 
+To make it automated I hacked together some crap and it actually works. Now if you want to manage your docker container's firewall with your favorite tool `ufw` all you have to do is run your container with `UFW_MANAGED=TRUE` label. For example: `docker run -d -p 8080:80 -l UFW_MANAGED=TRUE nginx:alpine`
+
+I've also added example code in an [examples](examples) folder. 
 
 
 **Step 1**. Install *ufw-docker*'s firewall rules on your ufw configuration file.
@@ -61,7 +63,7 @@ sudo systemctl restart ufw
 
 **Step 3**. Install my crap
 
-Make sure you have python 3.6 and pip installed. Then you can either clone the repo or just copy the `ufw-docker-automated.py` file to your machine.
+Make sure you have python 3.6 and pip installed. Then you can either clone the repo or just copy the [ufw-docker-automated.py](src/ufw-docker-automated.py) file to your machine.
 Then install the docker SDK for python by running: `pip install docker` and you're good to go.
 
 **Step 4**. Create new systemd service entry
