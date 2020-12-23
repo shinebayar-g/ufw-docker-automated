@@ -168,3 +168,54 @@ To                         Action      From
 172.17.0.2 80/tcp          ALLOW FWD   192.168.0.2     <= this baby added allowing only 192.168.0.2 to access nginx server 
 172.17.0.2 80/tcp          ALLOW FWD   192.168.1.0/24  <= this baby added allowing only 192.168.1.0/24 to access nginx server 
 ```
+
+**Step 8**. Hardening firewall rules with UFW_DENY_OUTGOING and UFW_TO
+
+You can also choose to retrict outgoing traffic from specific IPs, Subnets or hostnames*.
+For example with docker-compose :
+
+```
+version: '2.4'
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    labels:
+      - UFW_MANAGED=true
+      - UFW_FROM=192.168.0.0/24
+      - UFW_DENY_OUTGOING=true
+      - UFW_TO=any:53;deb.debian.org:80/tcp;security.debian.org:80/tcp;192.168.2.0/24
+    ports:
+      - 80:80
+```
+
+will add following entry to ufw list.
+
+```
+➜  sudo ufw status
+Status: active
+
+To                         Action      From
+--                         ------      ----
+22                         ALLOW       Anywhere                  
+80/tcp                     ALLOW       Anywhere                  
+443/tcp                    ALLOW       Anywhere                  
+
+172.17.0.2 80/tcp          ALLOW FWD   192.168.0.0/24     <= this entry allows only 192.168.1.0/24 to access nginx server 
+192.168.0.0/24             ALLOW FWD   172.17.0.2 80/tcp  <= this entry enables nginx server to reply back
+
+53                         ALLOW FWD   172.17.0.2         <= this entry enables nginx to resolve dns queries to any ip
+
+151.101.122.132 80/tcp     ALLOW FWD   172.17.0.2         <= those entries are the result of the commands :
+151.101.192.204 80/tcp     ALLOW FWD   172.17.0.2         <= - 'host -t a deb.debian.org'
+151.101.0.204 80/tcp       ALLOW FWD   172.17.0.2         <= - 'host -t a security.debian.org'
+151.101.64.204 80/tcp      ALLOW FWD   172.17.0.2         <= to enable apt update in the container
+151.101.128.204 80/tcp     ALLOW FWD   172.17.0.2
+
+192.168.2.0/24             ALLOW FWD   172.17.0.2         <= this entry allow outgoing traffic to 192.168.2.0/24 subnet for all port tcp and udp
+
+Anywhere                   DENY FWD    172.17.0.2         <= this entry block any other outgoing requests
+```
+
+*Warning if the hostname changes the IP pool you'll need to restart the container in order to have an updated firewall.
+This is why hostnames provided by dynamic dns will not work.
