@@ -143,3 +143,28 @@ To                         Action      From
 443/tcp                    ALLOW       Anywhere
 ```
 
+**Step 7**. Hardening firewall rules with UFW_FROM
+
+You can choose to restrict incoming traffic from specific IPs or Subnets.
+For example :
+
+```
+➜  docker run -d -p 8080:80 -l UFW_MANAGED=TRUE -l "UFW_FROM=192.168.0.2;192.168.1.0/24" nginx:alpine
+13a6ef724d92f404f150f5796dabfd305f4e16a9de846a67e5e99ba53ed2e4e7
+```
+
+will add following entry to ufw list.
+
+```
+➜  sudo ufw status
+Status: active
+
+To                         Action      From
+--                         ------      ----
+22                         ALLOW       Anywhere                  
+80/tcp                     ALLOW       Anywhere                  
+443/tcp                    ALLOW       Anywhere                  
+
+172.17.0.2 80/tcp          ALLOW FWD   192.168.0.2     <= this baby added allowing only 192.168.0.2 to access nginx server 
+172.17.0.2 80/tcp          ALLOW FWD   192.168.1.0/24  <= this baby added allowing only 192.168.1.0/24 to access nginx server 
+```
