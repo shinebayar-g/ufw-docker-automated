@@ -87,7 +87,7 @@ def manage_ufw():
             container_port_num = None
             container_port_protocol = None
             ufw_managed = None
-            ufw_from = None
+            ufw_allow_from = None
             ufw_deny_outgoing = None
             ufw_allow_to = None
 
@@ -103,12 +103,12 @@ def manage_ufw():
             if 'UFW_MANAGED' in container.labels:
                 ufw_managed = container.labels.get('UFW_MANAGED').capitalize()
 
-            if 'UFW_FROM' in container.labels:
+            if 'UFW_ALLOW_FROM' in container.labels:
                 try:
-                    ufw_from = [ip_network(str(_sub)) for _sub in container.labels.get('UFW_FROM').split(';')]
+                    ufw_allow_from = [ip_network(ipnet) for ipnet in container.labels.get('UFW_ALLOW_FROM').split(';')]
                 except ValueError as e:
-                    print(f"Invalid UFW label: UFW_FROM={container.labels.get('UFW_FROM')} exception={e}")
-                    ufw_from = -1
+                    print(f"Invalid UFW label: UFW_ALLOW_FROM={container.labels.get('UFW_ALLOW_FROM')} exception={e}")
+                    ufw_allow_from = -1
                     pass
 
             if 'UFW_DENY_OUTGOING' in container.labels:
@@ -139,7 +139,7 @@ def manage_ufw():
                     if value:
                         container_port_num = list(key.split("/"))[0]
                         container_port_protocol = list(key.split("/"))[1]
-                        if not ufw_from:
+                        if not ufw_allow_from:
                             # Allow incomming requests from any to the container
                             print(f"Adding UFW rule: allow from any to container {container.name} on port {container_port_num}/{container_port_protocol}")
                             subprocess.run([f"ufw route allow proto {container_port_protocol} \
@@ -154,8 +154,8 @@ def manage_ufw():
                                                     from {container_ip} port {container_port_num} to any"],
                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                             shell=True)
-                        elif isinstance(ufw_from, list):
-                            for source in ufw_from:
+                        elif isinstance(ufw_allow_from, list):
+                            for source in ufw_allow_from:
                                 # Allow incomming requests from whitelisted IPs or Subnets to the container
                                 print(f"Adding UFW rule: allow from {source} to container {container.name} on port {container_port_num}/{container_port_protocol}")
                                 subprocess.run([f"ufw route allow proto {container_port_protocol} \
