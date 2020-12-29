@@ -83,8 +83,9 @@ Requires=ufw.service
 [Service]
 # Script requires run as root or sudo user to manage ufw!
 User=root
+Environment=PYTHONUNBUFFERED=1
 # Path to your python executable and actual location of the script
-ExecStart=/usr/bin/python3 /home/ubuntu/ufw-docker-automated.py
+ExecStart=/usr/bin/python3 -u /home/ubuntu/ufw-docker-automated.py
 Restart=always
 
 [Install]

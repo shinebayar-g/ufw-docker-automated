@@ -6,6 +6,7 @@ import re
 
 client = docker.from_env()
 
+# implementation of a get method ontop __builtins__.list class
 class _list(__builtins__.list):
     def get(self, index, default=None):
         try:
@@ -13,63 +14,61 @@ class _list(__builtins__.list):
         except IndexError:
             return default
 
-class _tuple(__builtins__.tuple):
-    def get(self, index, default=None):
-        try:
-            return self[index] if self[index] else default
-        except IndexError:
-            return default
+def to_string_port(port):
+    if port.get(0) and port.get(1):
+        return f"on port {int(port.get(0))}/{port.get(1)}"
+    elif port.get(0):
+        return f"on port {int(port.get(0))}"
+    elif port.get(1):
+        return f"on proto {port.get(1)}"
+    else:
+        return ""
 
 def validate_port(port):
     if not port:
-        return _tuple([None, None])
-
-    _port = str(port)
-    r = re.compile('^(\d+)?(/tcp|/udp)?$')
-    if r.match(_port) is None:
-        raise ValueError(f"Port format is invalid {_port} it must match '^(\d+)?(/tcp|/udp)?$'")
-    _port_tuple = _list(_port.split('/'))
-    return _tuple([_port_tuple.get(0), _port_tuple.get(1)])
+        return {}
+    r = re.compile('^(\d+)?((/|^)(tcp|udp))?$')
+    if r.match(port) is None:
+        raise ValueError(f"'{port}' does not appear to be a valid port and protocol that matches '^(\d+)?((/|^)(tcp|udp))?$'")
+    if port in ['tcp', 'udp']:
+        return {'protocol': port, 'to_string_port': to_string_port(_list([None, port]))}
+    port_and_protocol_split = _list(port.split('/'))
+    if not (1 <= int(port_and_protocol_split.get(0)) <= 65535):
+        raise ValueError(f"'{port}' does not appear to be a valid port number")
+    return {'port': int(port_and_protocol_split.get(0)), 'protocol': port_and_protocol_split.get(1), 'to_string_port': to_string_port(port_and_protocol_split)}
 
 def validate_hostname(hostname):
     if len(hostname) > 255:
         return False
     if hostname[-1] == ".":
         hostname = hostname[:-1] # strip exactly one dot from the right, if present
-    allowed = re.compile("(?!-)[A-Z\d-]{1,63}(?<!-)$", re.IGNORECASE)
-    return all(allowed.match(x) for x in hostname.split("."))
+    labels = hostname.split(".")
+    # the TLD must be not all-numeric
+    if re.match(r"[0-9]+$", labels[-1]):
+        return False
+    allowed = re.compile("(?!-)[A-Z\d\-_]{1,63}(?<!-)$", re.IGNORECASE)
+    return all(allowed.match(x) for x in labels)
 
-def validate_ip_network(ip):
+def validate_ip_network(ipnet):
     try:
-        ip_network(ip)
+        ip_network(ipnet)
         return True
     except ValueError as e:
         return False
 
-def validate_network(network):
-    if not network:
-        return _list()
-
-    _network = str(network)
-    if _network == "any":
-        return _list(["any"])
-    elif not validate_ip_network(_network) and validate_hostname(_network):
-        host_output = subprocess.run([f"host -t a {_network}"],
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
-                    shell=True).stdout.strip().split("\n")
-        return _list([ip_network(_list(line.split("has address")).get(1).strip()) for line in host_output if _list(line.split("has address")).get(1)])
+# ipnet stands for ip or subnet
+def validate_ipnet(ipnet):
+    if not ipnet:
+        return [{}]
+    elif ipnet == "any":
+        return [{'ipnet': "any"}]
+    elif not validate_ip_network(ipnet=ipnet) and validate_hostname(hostname=ipnet):
+        host_output = subprocess.run([f"host -t a {ipnet}"],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
+                                shell=True).stdout.strip().split("\n")
+        return [{'ipnet': ip_network(_list(line.split("has address")).get(1).strip())} for line in host_output if _list(line.split("has address")).get(1)]
     else:
-        return _list([ip_network(_network)])
-
-def format_destination_port(_to):
-    if _to.get(1) and _to.get(2):
-        return f" on port {_to.get(1)}/{_to.get(2)}"
-    elif _to.get(1):
-        return f" on port {_to.get(1)}"
-    elif _to.get(2):
-        return f" on proto {_to.get(2)}"
-    else:
-        return ""
+        return [{'ipnet': ip_network(ipnet)}]
 
 def manage_ufw():
     for event in client.events(decode=True):
@@ -90,7 +89,7 @@ def manage_ufw():
             ufw_managed = None
             ufw_from = None
             ufw_deny_outgoing = None
-            ufw_to = None
+            ufw_allow_to = None
 
             container_port_dict = container.attrs['NetworkSettings']['Ports'].items()
 
@@ -115,18 +114,18 @@ def manage_ufw():
             if 'UFW_DENY_OUTGOING' in container.labels:
                 ufw_deny_outgoing = container.labels.get('UFW_DENY_OUTGOING').capitalize()
 
-            if 'UFW_TO' in container.labels:
+            if 'UFW_ALLOW_TO' in container.labels:
                 try:
-                    ufw_to = _list()
-                    for _to in container.labels.get('UFW_TO').split(';'):
-                        _to_list = _list(_to.split(':'))
-                        if len(_to_list) == 2 or len(_to_list) == 1:
-                            _to_sub = validate_network(_to_list.get(0))
-                            _to_port = validate_port(_to_list.get(1))
-                            ufw_to += [_tuple([_ip, _to_port.get(0), _to_port.get(1)]) for _ip in _to_sub]
+                    ufw_allow_to = []
+                    for item in container.labels.get('UFW_ALLOW_TO').split(';'):
+                        item_split = _list(item.split(':'))
+                        if len(item_split) == 2 or len(item_split) == 1:
+                            ipnet_list = validate_ipnet(ipnet=item_split.get(0))
+                            port_dict = validate_port(port=item_split.get(1))
+                            ufw_allow_to += [{**ipnet_dict, **port_dict} for ipnet_dict in ipnet_list]
                 except ValueError as e:
-                    print(f"ufw-docker-automated: Invalid UFW label: UFW_TO={container.labels.get('UFW_TO')} exception={e}")
-                    ufw_to = None
+                    print(f"Invalid UFW label: UFW_ALLOW_TO={container.labels.get('UFW_ALLOW_TO')} exception={e}")
+                    ufw_allow_to = None
                     pass
 
             if ufw_managed == 'True':
@@ -141,43 +140,46 @@ def manage_ufw():
                         container_port_num = list(key.split("/"))[0]
                         container_port_protocol = list(key.split("/"))[1]
                         if not ufw_from:
+                            # Allow incomming requests from any to the container
                             print(f"Adding UFW rule: allow from any to container {container.name} on port {container_port_num}/{container_port_protocol}")
-                            subprocess.run([f"sudo ufw route allow proto {container_port_protocol} \
+                            subprocess.run([f"ufw route allow proto {container_port_protocol} \
                                                 from any to {container_ip} \
                                                 port {container_port_num}"],
                                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                            shell=True)
                             if ufw_deny_outgoing == 'True':
-                                # Allow container to reply back to the client
+                                # Allow the container to reply back to any client (if outgoing requests are denied by default)
                                 print(f"Adding UFW rule: allow reply from container {container.name} on port {container_port_num}/{container_port_protocol} to any")
                                 subprocess.run([f"ufw route allow proto {container_port_protocol} \
                                                     from {container_ip} port {container_port_num} to any"],
                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                             shell=True)
                         elif isinstance(ufw_from, list):
-                            for subnet in ufw_from:
-                                print(f"Adding UFW rule: allow from {subnet} to container {container.name} on port {container_port_num}/{container_port_protocol}")
-                                subprocess.run([f"sudo ufw route allow proto {container_port_protocol} \
-                                                    from {subnet} to {container_ip} \
+                            for source in ufw_from:
+                                # Allow incomming requests from whitelisted IPs or Subnets to the container
+                                print(f"Adding UFW rule: allow from {source} to container {container.name} on port {container_port_num}/{container_port_protocol}")
+                                subprocess.run([f"ufw route allow proto {container_port_protocol} \
+                                                    from {source} to {container_ip} \
                                                     port {container_port_num}"],
                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                             shell=True)
                                 if ufw_deny_outgoing == 'True':
-                                    # Allow container to reply back to the client
-                                    print(f"Adding UFW rule: allow reply from container {container.name} on port {container_port_num}/{container_port_protocol} to {subnet}")
+                                    # Allow the container to reply back to the client (if outgoing requests are denied by default)
+                                    print(f"Adding UFW rule: allow reply from container {container.name} on port {container_port_num}/{container_port_protocol} to {source}")
                                     subprocess.run([f"ufw route allow proto {container_port_protocol} \
-                                                        from {container_ip} port {container_port_num} to {subnet}"],
+                                                        from {container_ip} port {container_port_num} to {source}"],
                                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                                 shell=True)
 
                 if ufw_deny_outgoing == 'True':
-                    if ufw_to:
-                        for _to in ufw_to:
-                            print(f"Adding UFW rule: allow outgoing from container {container.name} to {_to.get(0)}{format_destination_port(_to)}")
-                            destination_port_num = f"port {_to.get(1)}" if _to.get(1) else ""
-                            destination_port_protocol = f"proto {_to.get(2)}" if _to.get(2) else ""
-                            subprocess.run([f"ufw route allow {destination_port_protocol} \
-                                                from {container_ip} to {_to.get(0)} {destination_port_num}"],
+                    if ufw_allow_to:
+                        for destination in ufw_allow_to:
+                            # Allow outgoing requests from the container to whitelisted IPs or Subnets
+                            print(f"Adding UFW rule: allow outgoing from container {container.name} to {destination.get('ipnet')} {destination.get('to_string_port')}")
+                            destination_port = f"port {destination.get('port')}" if destination.get('port') else ""
+                            destination_protocol = f"proto {destination.get('protocol')}" if destination.get('protocol') else ""
+                            subprocess.run([f"ufw route allow {destination_protocol} \
+                                                from {container_ip} to {destination.get('ipnet')} {destination_port}"],
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                         shell=True)
                     # Deny any other outgoing requests
@@ -195,13 +197,14 @@ def manage_ufw():
                 for i in range(int(ufw_length.stdout.strip().split("\n")[0])):
                     awk = "'{print $2}'"
                     ufw_status = subprocess.run(
-                        [f"sudo ufw status numbered | grep {container_ip} | awk -F \"[][]\" {awk} "],
+                        [f"ufw status numbered | grep {container_ip} | awk -F \"[][]\" {awk} "],
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                         shell=True)
 
+                    # Removing any ufw rules that contains the container ip in it
                     ufw_num = ufw_status.stdout.strip().split("\n")[0]
                     print(f"Cleaning UFW rule: for container {container.name}")
-                    ufw_delete = subprocess.run([f"yes y | sudo ufw delete {ufw_num}"],
+                    ufw_delete = subprocess.run([f"yes y | ufw delete {ufw_num}"],
                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                             shell=True)
 
