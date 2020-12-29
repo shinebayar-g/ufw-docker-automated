@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import subprocess
 import docker
+from ipaddress import ip_network
 
 client = docker.from_env()
 
@@ -22,6 +23,7 @@ def manage_ufw():
             container_port_num = None
             container_port_protocol = None
             ufw_managed = None
+            ufw_from = None
 
             container_port_dict = container.attrs['NetworkSettings']['Ports'].items()
 
@@ -35,6 +37,14 @@ def manage_ufw():
             if 'UFW_MANAGED' in container.labels:
                 ufw_managed = container.labels.get('UFW_MANAGED').capitalize()
 
+            if 'UFW_FROM' in container.labels:
+                try:
+                    ufw_from = [ip_network(str(_sub)) for _sub in container.labels.get('UFW_FROM').split(';')]
+                except ValueError as e:
+                    print(f"Invalid UFW label: UFW_FROM={container.labels.get('UFW_FROM')} exception={e}")
+                    ufw_from = -1
+                    pass
+                          
             if ufw_managed == 'True':
                 for key, value in container_port_dict:
                     if value:
@@ -46,12 +56,21 @@ def manage_ufw():
                     if value:
                         container_port_num = list(key.split("/"))[0]
                         container_port_protocol = list(key.split("/"))[1]
-                        print(f"Adding UFW rule: {container_port_num}/{container_port_protocol} of container {container.name}")
-                        subprocess.run([f"sudo ufw route allow proto {container_port_protocol} \
-                                            from any to {container_ip} \
-                                            port {container_port_num}"],
-                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
-                                       shell=True)
+                        if not ufw_from:
+                            print(f"Adding UFW rule: {container_port_num}/{container_port_protocol} of container {container.name}")
+                            subprocess.run([f"sudo ufw route allow proto {container_port_protocol} \
+                                                from any to {container_ip} \
+                                                port {container_port_num}"],
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
+                                           shell=True)
+                        elif isinstance(ufw_from, list):
+                            for subnet in ufw_from:
+                                print(f"Adding UFW rule: {container_port_num}/{container_port_protocol} of container {container.name} from {subnet}")
+                                subprocess.run([f"sudo ufw route allow proto {container_port_protocol} \
+                                                    from {subnet} to {container_ip} \
+                                                    port {container_port_num}"],
+                                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
+                                            shell=True)
 
             if event_type == 'kill' and ufw_managed == 'True':
                 ufw_length = subprocess.run(
