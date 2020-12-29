@@ -10,7 +10,7 @@ Fortunately some smart people found the solution to this problem and my favorite
 Original **ufw-docker** project is very easy to use, but requires manual work and doesn't track container IP changes. If original container's IP changes somehow, your rule will be invalid.
 To make it automated I hacked together some crap and it actually works. Now if you want to manage your docker container's firewall with your favorite tool `ufw` all you have to do is run your container with `UFW_MANAGED=TRUE` label. For example: `docker run -d -p 8080:80 -l UFW_MANAGED=TRUE nginx:alpine`
 
-I've also added example code in an [examples](examples) folder. 
+I've also added example code in an [examples](examples) folder.
 
 
 **Step 1**. Install *ufw-docker*'s firewall rules on your ufw configuration file.
@@ -91,7 +91,7 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-**Step 5**. Enable the systemd service and start it 
+**Step 5**. Enable the systemd service and start it
 
 ```
 sudo systemctl daemon-reload
@@ -117,17 +117,19 @@ Status: active
 
 To                         Action      From
 --                         ------      ----
-22                         ALLOW       Anywhere                  
-80/tcp                     ALLOW       Anywhere                  
-443/tcp                    ALLOW       Anywhere                  
+22                         ALLOW       Anywhere
+80/tcp                     ALLOW       Anywhere
+443/tcp                    ALLOW       Anywhere
 
-172.17.0.2 80/tcp          ALLOW FWD   Anywhere  <= this baby added 
+172.17.0.2 80/tcp          ALLOW FWD   Anywhere  <= this baby added
 ```
+
+Note that you will access the container by its published port. For example: nginx is exposed at port 8080 here, not 80.
 
 Once you stop the container, ufw entry will be gone.
 
 ```
-➜  docker stop 13a6ef724d92 
+➜  docker stop 13a6ef724d92
 13a6ef724d92
 ```
 
@@ -161,10 +163,10 @@ Status: active
 
 To                         Action      From
 --                         ------      ----
-22                         ALLOW       Anywhere                  
-80/tcp                     ALLOW       Anywhere                  
-443/tcp                    ALLOW       Anywhere                  
+22                         ALLOW       Anywhere
+80/tcp                     ALLOW       Anywhere
+443/tcp                    ALLOW       Anywhere
 
-172.17.0.2 80/tcp          ALLOW FWD   192.168.0.2     <= this baby added allowing only 192.168.0.2 to access nginx server 
-172.17.0.2 80/tcp          ALLOW FWD   192.168.1.0/24  <= this baby added allowing only 192.168.1.0/24 to access nginx server 
+172.17.0.2 80/tcp          ALLOW FWD   192.168.0.2     <= this baby added allowing only 192.168.0.2 to access nginx server
+172.17.0.2 80/tcp          ALLOW FWD   192.168.1.0/24  <= this baby added allowing only 192.168.1.0/24 to access nginx server
 ```
