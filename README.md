@@ -185,7 +185,7 @@ services:
       - UFW_MANAGED=true
       - UFW_ALLOW_FROM=192.168.0.0/24
       - UFW_DENY_OUTGOING=true
-      - UFW_ALLOW_TO=any:53;deb.debian.org:80/tcp;security.debian.org:80/tcp;192.168.2.0/24:tcp
+      - UFW_ALLOW_TO=any:53;deb.debian.org:80/tcp;security.debian.org:80/tcp;192.168.2.0/24;192.168.3.0/24:tcp
     ports:
       - 80:80
 ```
@@ -213,7 +213,8 @@ To                         Action      From
 151.101.64.204 80/tcp      ALLOW FWD   172.17.0.2         <= to enable apt update in the container
 151.101.128.204 80/tcp     ALLOW FWD   172.17.0.2
 
-192.168.2.0/24/tcp         ALLOW FWD   172.17.0.2/tcp     <= this entry allow outgoing traffic to 192.168.2.0/24 subnet for all port tcp and udp
+192.168.2.0/24             ALLOW FWD   172.17.0.2         <= this entry allow outgoing traffic to 192.168.2.0/24 subnet for all tcp and udp ports
+192.168.3.0/24/tcp         ALLOW FWD   172.17.0.2/tcp     <= this entry allow outgoing traffic to 192.168.3.0/24 subnet for all tcp ports
 
 Anywhere                   DENY FWD    172.17.0.2         <= this entry block any other outgoing requests
 ```
