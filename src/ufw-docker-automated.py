@@ -107,7 +107,7 @@ def manage_ufw():
 
             if 'UFW_ALLOW_FROM' in container.labels:
                 try:
-                    ufw_allow_from = [ip_network(ipnet) for ipnet in container.labels.get('UFW_ALLOW_FROM').split(';')]
+                    ufw_allow_from = [ip_network(ipnet) for ipnet in container.labels.get('UFW_ALLOW_FROM').split(';') if ipnet]
                 except ValueError as e:
                     print(f"ufw-docker-automated: Invalid UFW label: UFW_ALLOW_FROM={container.labels.get('UFW_ALLOW_FROM')} exception={e}")
                     ufw_allow_from = -1
@@ -124,7 +124,7 @@ def manage_ufw():
                         if len(item_split) == 2 or len(item_split) == 1:
                             ipnet_list = validate_ipnet(ipnet=item_split.get(0))
                             port_dict = validate_port(port=item_split.get(1))
-                            ufw_allow_to += [{**ipnet_dict, **port_dict} for ipnet_dict in ipnet_list]
+                            ufw_allow_to += [{**ipnet_dict, **port_dict} for ipnet_dict in ipnet_list if ipnet_dict]
                 except ValueError as e:
                     print(f"ufw-docker-automated: Invalid UFW label: UFW_ALLOW_TO={container.labels.get('UFW_ALLOW_TO')} exception={e}")
                     ufw_allow_to = None
