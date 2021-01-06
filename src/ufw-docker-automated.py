@@ -66,6 +66,8 @@ def validate_ipnet(ipnet):
         host_output = subprocess.run([f"host -t a {ipnet}"],
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                 shell=True).stdout.strip().split("\n")
+        if "not found:" in _list(host_output).get(0, ''):
+            print(f"ufw-docker-automated: Warning UFW label: {host_output[0]}")
         return [{'ipnet': ip_network(_list(line.split("has address")).get(1).strip())} for line in host_output if _list(line.split("has address")).get(1)]
     else:
         return [{'ipnet': ip_network(ipnet)}]
@@ -177,7 +179,7 @@ def manage_ufw():
                     if ufw_allow_to:
                         for destination in ufw_allow_to:
                             # Allow outgoing requests from the container to whitelisted IPs or Subnets
-                            print(f"ufw-docker-automated: Adding UFW rule: allow outgoing from container {container.name} to {destination.get('ipnet')} {destination.get('to_string_port')}")
+                            print(f"ufw-docker-automated: Adding UFW rule: allow outgoing from container {container.name} to {destination.get('ipnet')} {destination.get('to_string_port', '')}")
                             destination_port = f"port {destination.get('port')}" if destination.get('port') else ""
                             destination_protocol = f"proto {destination.get('protocol')}" if destination.get('protocol') else ""
                             subprocess.run([f"ufw route allow {destination_protocol} \
