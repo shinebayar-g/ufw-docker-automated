@@ -146,13 +146,13 @@ To                         Action      From
 443/tcp                    ALLOW       Anywhere
 ```
 
-**Step 7**. Hardening firewall rules with UFW_FROM
+**Step 7**. Hardening firewall rules with UFW_ALLOW_FROM
 
 You can choose to restrict incoming traffic from specific IPs or Subnets.
 For example :
 
 ```
-➜  docker run -d -p 8080:80 -l UFW_MANAGED=TRUE -l "UFW_FROM=192.168.0.2;192.168.1.0/24" nginx:alpine
+➜  docker run -d -p 8080:80 -l UFW_MANAGED=TRUE -l "UFW_ALLOW_FROM=192.168.0.2;192.168.1.0/24" nginx:alpine
 13a6ef724d92f404f150f5796dabfd305f4e16a9de846a67e5e99ba53ed2e4e7
 ```
 
@@ -172,7 +172,7 @@ To                         Action      From
 172.17.0.2 80/tcp          ALLOW FWD   192.168.1.0/24  <= this baby added allowing only 192.168.1.0/24 to access nginx server
 ```
 
-**Step 8**. Hardening firewall rules with UFW_DENY_OUTGOING and UFW_TO
+**Step 8**. Hardening firewall rules with UFW_DENY_OUTGOING and UFW_ALLOW_TO
 
 You can also choose to retrict outgoing traffic from specific IPs, Subnets or hostnames*.
 For example with docker-compose :
@@ -185,9 +185,9 @@ services:
     container_name: nginx
     labels:
       - UFW_MANAGED=true
-      - UFW_FROM=192.168.0.0/24
+      - UFW_ALLOW_FROM=192.168.0.0/24
       - UFW_DENY_OUTGOING=true
-      - UFW_TO=any:53;deb.debian.org:80/tcp;security.debian.org:80/tcp;192.168.2.0/24;192.168.3.0/24:tcp
+      - UFW_ALLOW_TO=any:53;deb.debian.org:80/tcp;security.debian.org:80/tcp;192.168.2.0/24;192.168.3.0/24:tcp
     ports:
       - 80:80
 ```
