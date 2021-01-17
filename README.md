@@ -187,7 +187,7 @@ services:
       - UFW_MANAGED=true
       - UFW_FROM=192.168.0.0/24
       - UFW_DENY_OUTGOING=true
-      - UFW_TO=192.168.1.2;192.168.2.0/24
+      - UFW_TO=192.168.1.0/24;192.168.2.2:9000;192.168.2.3:8000/udp;192.168.3.0/24:tcp
     ports:
       - 80:80
 ```
@@ -207,8 +207,10 @@ To                         Action      From
 172.17.0.2 80/tcp          ALLOW FWD   192.168.0.0/24     <= this entry allows only 192.168.1.0/24 to access nginx server 
 192.168.0.0/24             ALLOW FWD   172.17.0.2 80/tcp  <= this entry enables nginx server to reply back
 
-192.168.1.2                ALLOW FWD   172.17.0.2         <= this entry allow outgoing traffic to 192.168.1.2 ip for all tcp and udp ports
-192.168.2.0/24             ALLOW FWD   172.17.0.2         <= this entry allow outgoing traffic to 192.168.2.0/24 subnet for all tcp and udp ports
+192.168.1.0/24             ALLOW FWD   172.17.0.2         <= this entry allow outgoing traffic to 192.168.1.0/24 subnet for all tcp and udp ports
+192.168.2.2 8000/udp       ALLOW FWD   172.17.0.2         <= this entry allow outgoing traffic to 192.168.2.2 ip on 8000 port for udp protocol
+192.168.2.3 9000           ALLOW FWD   172.17.0.2         <= this entry allow outgoing traffic to 192.168.2.3 ip on 9000 port for tcp and udp protocols
+192.168.3.0/24/tcp         ALLOW FWD   172.17.0.2/tcp     <= this entry allow outgoing traffic to 192.168.3.0/24 subnet for all tcp ports
 
 Anywhere                   DENY FWD    172.17.0.2         <= this entry block any other outgoing requests
 ```
