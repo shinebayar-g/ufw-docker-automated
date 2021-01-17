@@ -20,8 +20,6 @@ def manage_ufw():
                 continue
             container_network = container.attrs['HostConfig']['NetworkMode']
             container_ip = None
-            container_port_num = None
-            container_port_protocol = None
             ufw_managed = None
             ufw_from = ["any"]
             ufw_deny_outgoing = None
@@ -61,26 +59,25 @@ def manage_ufw():
 
             if event_type == 'start' and ufw_managed == 'True':
                 for key, value in container_port_dict:
-                    if value:
+                    if value and ufw_from:
                         container_port_num = list(key.split("/"))[0]
                         container_port_protocol = list(key.split("/"))[1]
-                        if ufw_from:
-                            for source in ufw_from:
-                                # Allow incomming requests from whitelisted IPs or Subnets to the container
-                                print(f"ufw-docker-automated: Adding UFW rule: allow from {source} to container {container.name} on port {container_port_num}/{container_port_protocol}")
+                        for source in ufw_from:
+                            # Allow incomming requests from whitelisted IPs or Subnets to the container
+                            print(f"ufw-docker-automated: Adding UFW rule: allow from {source} to container {container.name} on port {container_port_num}/{container_port_protocol}")
+                            subprocess.run([f"ufw route allow proto {container_port_protocol} \
+                                                from {source} \
+                                                to {container_ip} port {container_port_num}"],
+                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
+                                        shell=True)
+                            if ufw_deny_outgoing == 'True':
+                                # Allow the container to reply back to the client (if outgoing requests are denied by default)
+                                print(f"ufw-docker-automated: Adding UFW rule: allow reply from container {container.name} on port {container_port_num}/{container_port_protocol} to {source}")
                                 subprocess.run([f"ufw route allow proto {container_port_protocol} \
-                                                    from {source} \
-                                                    to {container_ip} port {container_port_num}"],
+                                                    from {container_ip} port {container_port_num} \
+                                                    to {source}"],
                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                             shell=True)
-                                if ufw_deny_outgoing == 'True':
-                                    # Allow the container to reply back to the client (if outgoing requests are denied by default)
-                                    print(f"ufw-docker-automated: Adding UFW rule: allow reply from container {container.name} on port {container_port_num}/{container_port_protocol} to {source}")
-                                    subprocess.run([f"ufw route allow proto {container_port_protocol} \
-                                                        from {container_ip} port {container_port_num} \
-                                                        to {source}"],
-                                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
-                                                shell=True)
 
                 if ufw_deny_outgoing == 'True':
                     if ufw_to:
@@ -115,7 +112,7 @@ def manage_ufw():
                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                             shell=True)
                     ufw_delete_result = ufw_delete.stdout.split("\n")[1].strip()
-                    print(f"ufw-docker-automated: Cleaning UFW rule: deleted rule '{ufw_delete_result}' for container {container.name}")
+                    print(f"ufw-docker-automated: Cleaning UFW rule: container {container.name} deleted rule '{ufw_delete_result}'")
 
 
 if __name__ == '__main__':
