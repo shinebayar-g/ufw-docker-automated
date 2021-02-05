@@ -83,8 +83,9 @@ Requires=ufw.service
 [Service]
 # Script requires run as root or sudo user to manage ufw!
 User=root
+Environment=PYTHONUNBUFFERED=1
 # Path to your python executable and actual location of the script
-ExecStart=/usr/bin/python3 /home/ubuntu/ufw-docker-automated.py
+ExecStart=/usr/bin/python3 -u /home/ubuntu/ufw-docker-automated.py
 Restart=always
 
 [Install]
@@ -169,4 +170,45 @@ To                         Action      From
 
 172.17.0.2 80/tcp          ALLOW FWD   192.168.0.2     <= this baby added allowing only 192.168.0.2 to access nginx server
 172.17.0.2 80/tcp          ALLOW FWD   192.168.1.0/24  <= this baby added allowing only 192.168.1.0/24 to access nginx server
+```
+
+**Step 8**. Hardening firewall rules with UFW_DENY_OUTGOING and UFW_TO
+
+You can also choose to retrict outgoing traffic from specific IPs, Subnets.
+For example with docker-compose :
+
+```
+version: '2.4'
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    labels:
+      - UFW_MANAGED=true
+      - UFW_FROM=192.168.0.0/24
+      - UFW_DENY_OUTGOING=true
+      - UFW_TO=192.168.1.2;192.168.2.0/24
+    ports:
+      - 80:80
+```
+
+will add following entry to ufw list.
+
+```
+➜  sudo ufw status
+Status: active
+
+To                         Action      From
+--                         ------      ----
+22                         ALLOW       Anywhere                  
+80/tcp                     ALLOW       Anywhere                  
+443/tcp                    ALLOW       Anywhere                  
+
+172.17.0.2 80/tcp          ALLOW FWD   192.168.0.0/24     <= this entry allows only 192.168.1.0/24 to access nginx server 
+192.168.0.0/24             ALLOW FWD   172.17.0.2 80/tcp  <= this entry enables nginx server to reply back
+
+192.168.1.2                ALLOW FWD   172.17.0.2         <= this entry allow outgoing traffic to 192.168.1.2 ip for all tcp and udp ports
+192.168.2.0/24             ALLOW FWD   172.17.0.2         <= this entry allow outgoing traffic to 192.168.2.0/24 subnet for all tcp and udp ports
+
+Anywhere                   DENY FWD    172.17.0.2         <= this entry block any other outgoing requests
 ```
