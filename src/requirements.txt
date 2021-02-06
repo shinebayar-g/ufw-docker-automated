@@ -6,4 +6,3 @@ requests==2.25.1
 six==1.15.0
 urllib3==1.26.2
 websocket-client==0.57.0
-re==2020.11.13
