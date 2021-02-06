@@ -72,7 +72,7 @@ def validate_ipnet(ipnet):
     else:
         return [{'ipnet': ip_network(ipnet)}]
 
-def parse_ufw_to(label):
+def parse_ufw_allow_to(label):
     output = []
     for item in label.split(';'):
         item_list = _list(item.split(':'))
@@ -97,9 +97,9 @@ def manage_ufw():
             container_network = container.attrs['HostConfig']['NetworkMode']
             container_ip = None
             ufw_managed = None
-            ufw_from = ["any"]
+            ufw_allow_from = ["any"]
             ufw_deny_outgoing = None
-            ufw_to = None
+            ufw_allow_to = None
 
             container_port_dict = container.attrs['NetworkSettings']['Ports'].items()
 
@@ -114,31 +114,31 @@ def manage_ufw():
                 ufw_managed = container.labels.get('UFW_MANAGED').capitalize()
 
             if ufw_managed == 'True':
-                if 'UFW_FROM' in container.labels:
+                if 'UFW_ALLOW_FROM' in container.labels:
                     try:
-                        ufw_from = [ip_network(ipnet) for ipnet in container.labels.get('UFW_FROM').split(';') if ipnet]
+                        ufw_allow_from = [ip_network(ipnet) for ipnet in container.labels.get('UFW_ALLOW_FROM').split(';') if ipnet]
                     except ValueError as e:
-                        print(f"ufw-docker-automated: Invalid UFW label: UFW_FROM={container.labels.get('UFW_FROM')} exception={e}")
-                        ufw_from = None
+                        print(f"ufw-docker-automated: Invalid UFW label: UFW_ALLOW_FROM={container.labels.get('UFW_ALLOW_FROM')} exception={e}")
+                        ufw_allow_from = None
                         pass
 
                 if 'UFW_DENY_OUTGOING' in container.labels:
                     ufw_deny_outgoing = container.labels.get('UFW_DENY_OUTGOING').capitalize()
 
-                if ufw_deny_outgoing == 'True' and 'UFW_TO' in container.labels:
+                if ufw_deny_outgoing == 'True' and 'UFW_ALLOW_TO' in container.labels:
                     try:
-                        ufw_to = parse_ufw_to(container.labels.get('UFW_TO'))
+                        ufw_allow_to = parse_ufw_allow_to(container.labels.get('UFW_ALLOW_TO'))
                     except ValueError as e:
-                        print(f"ufw-docker-automated: Invalid UFW label: UFW_TO={container.labels.get('UFW_TO')} exception={e}")
-                        ufw_to = None
+                        print(f"ufw-docker-automated: Invalid UFW label: UFW_ALLOW_TO={container.labels.get('UFW_ALLOW_TO')} exception={e}")
+                        ufw_allow_to = None
                         pass
 
             if event_type == 'start' and ufw_managed == 'True':
                 for key, value in container_port_dict:
-                    if value and ufw_from:
+                    if value and ufw_allow_from:
                         container_port_num = list(key.split("/"))[0]
                         container_port_protocol = list(key.split("/"))[1]
-                        for source in ufw_from:
+                        for source in ufw_allow_from:
                             # Allow incomming requests from whitelisted IPs or Subnets to the container
                             print(f"ufw-docker-automated: Adding UFW rule: allow from {source} to container {container.name} on port {container_port_num}/{container_port_protocol}")
                             subprocess.run([f"ufw route allow proto {container_port_protocol} \
@@ -156,8 +156,8 @@ def manage_ufw():
                                             shell=True)
 
                 if ufw_deny_outgoing == 'True':
-                    if ufw_to:
-                        for destination in ufw_to:
+                    if ufw_allow_to:
+                        for destination in ufw_allow_to:
                             # Allow outgoing requests from the container to whitelisted IPs or Subnets
                             print(f"ufw-docker-automated: Adding UFW rule: allow outgoing from container {container.name} to {destination.get('ipnet')} {destination.get('to_string_port', '')}")
                             destination_port = f"port {destination.get('port')}" if destination.get('port') else ""
