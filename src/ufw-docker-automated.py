@@ -71,7 +71,7 @@ def validate_ipnet(ipnet):
         return [{'ipnet': ip_network(_list(line.split("has address")).get(1).strip())} for line in host_output if _list(line.split("has address")).get(1)]
     else:
         return [{'ipnet': ip_network(ipnet)}]
-        
+
 def parse_ufw_to(label):
     output = []
     for item in label.split(';'):
