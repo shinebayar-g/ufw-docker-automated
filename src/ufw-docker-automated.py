@@ -88,7 +88,7 @@ def manage_ufw():
         event_type = event.get('status')
 
         # container network is attached on start or stop event
-        if event_type == 'start' or event_type == 'kill':
+        if event.get('Type') == 'container' and (event_type == 'start' or event_type == 'die'):
             container = None
             try:
                 container = client.containers.get(event['id'])
@@ -143,7 +143,8 @@ def manage_ufw():
                             print(f"ufw-docker-automated: Adding UFW rule: allow from {source} to container {container.name} on port {container_port_num}/{container_port_protocol}")
                             subprocess.run([f"ufw route allow proto {container_port_protocol} \
                                                 from {source} \
-                                                to {container_ip} port {container_port_num}"],
+                                                to {container_ip} port {container_port_num} \
+                                                comment '{container.name}:{container.id}'"],
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                         shell=True)
                             if ufw_deny_outgoing == 'True':
@@ -151,7 +152,8 @@ def manage_ufw():
                                 print(f"ufw-docker-automated: Adding UFW rule: allow reply from container {container.name} on port {container_port_num}/{container_port_protocol} to {source}")
                                 subprocess.run([f"ufw route allow proto {container_port_protocol} \
                                                     from {container_ip} port {container_port_num} \
-                                                    to {source}"],
+                                                    to {source} \
+                                                    comment '{container.name}:{container.id}'"],
                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                             shell=True)
 
@@ -164,25 +166,26 @@ def manage_ufw():
                             destination_protocol = f"proto {destination.get('protocol')}" if destination.get('protocol') else ""
                             subprocess.run([f"ufw route allow {destination_protocol} \
                                                 from {container_ip} \
-                                                to {destination.get('ipnet')} {destination_port}"],
+                                                to {destination.get('ipnet')} {destination_port} \
+                                                comment '{container.name}:{container.id}'"],
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                         shell=True)
                     # Deny any other outgoing requests
                     print(f"ufw-docker-automated: Adding UFW rule: deny outgoing from container {container.name} to any")
-                    subprocess.run([f"ufw route deny from {container_ip} to any"],
+                    subprocess.run([f"ufw route deny from {container_ip} to any comment '{container.name}:{container.id}'"],
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                 shell=True)
 
-            if event_type == 'kill' and ufw_managed == 'True':
+            if event_type == 'die' and ufw_managed == 'True':
                 ufw_length = subprocess.run(
-                    [f"ufw status numbered | grep {container_ip} | wc -l"],
+                    [f"ufw status numbered | grep '# {container.name}:{container.id}' | wc -l"],
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                     shell=True)
 
-                for i in range(int(ufw_length.stdout.strip().split("\n")[0])):
+                for _ in range(int(ufw_length.stdout.strip().split("\n")[0])):
                     awk = "'{print $2}'"
                     ufw_status = subprocess.run(
-                        [f"ufw status numbered | grep {container_ip} | awk -F \"[][]\" {awk} "],
+                        [f"ufw status numbered | grep '# {container.name}:{container.id}' | awk -F \"[][]\" {awk} "],
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                         shell=True)
 
