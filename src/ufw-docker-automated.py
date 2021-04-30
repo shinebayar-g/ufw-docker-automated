@@ -88,11 +88,13 @@ def manage_ufw():
         event_type = event.get('status')
 
         # container network is attached on start or stop event
-        if event_type == 'start' or event_type == 'kill':
+        if event.get('Type') == 'container' and event_type == 'start':
             container = None
             try:
                 container = client.containers.get(event['id'])
             except docker.errors.NotFound as e:
+                attributes = event.get('Actor', {}).get('Attributes', {})
+                print(f"ufw-docker-automated: Warning container '{attributes.get('name')}' not found '{event['id']}'")
                 continue
             container_network = container.attrs['HostConfig']['NetworkMode']
             container_ip = None
@@ -133,7 +135,6 @@ def manage_ufw():
                         ufw_allow_to = None
                         pass
 
-            if event_type == 'start' and ufw_managed == 'True':
                 for key, value in container_port_dict:
                     if value and ufw_allow_from:
                         container_port_num = list(key.split("/"))[0]
@@ -143,7 +144,8 @@ def manage_ufw():
                             print(f"ufw-docker-automated: Adding UFW rule: allow from {source} to container {container.name} on port {container_port_num}/{container_port_protocol}")
                             subprocess.run([f"ufw route allow proto {container_port_protocol} \
                                                 from {source} \
-                                                to {container_ip} port {container_port_num}"],
+                                                to {container_ip} port {container_port_num} \
+                                                comment '{container.name}:{container.id}'"],
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                         shell=True)
                             if ufw_deny_outgoing == 'True':
@@ -151,7 +153,8 @@ def manage_ufw():
                                 print(f"ufw-docker-automated: Adding UFW rule: allow reply from container {container.name} on port {container_port_num}/{container_port_protocol} to {source}")
                                 subprocess.run([f"ufw route allow proto {container_port_protocol} \
                                                     from {container_ip} port {container_port_num} \
-                                                    to {source}"],
+                                                    to {source} \
+                                                    comment '{container.name}:{container.id}'"],
                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                             shell=True)
 
@@ -164,25 +167,32 @@ def manage_ufw():
                             destination_protocol = f"proto {destination.get('protocol')}" if destination.get('protocol') else ""
                             subprocess.run([f"ufw route allow {destination_protocol} \
                                                 from {container_ip} \
-                                                to {destination.get('ipnet')} {destination_port}"],
+                                                to {destination.get('ipnet')} {destination_port} \
+                                                comment '{container.name}:{container.id}'"],
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                         shell=True)
                     # Deny any other outgoing requests
                     print(f"ufw-docker-automated: Adding UFW rule: deny outgoing from container {container.name} to any")
-                    subprocess.run([f"ufw route deny from {container_ip} to any"],
+                    subprocess.run([f"ufw route deny from {container_ip} to any comment '{container.name}:{container.id}'"],
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                 shell=True)
 
-            if event_type == 'kill' and ufw_managed == 'True':
+        if event.get('Type') == 'container' and event_type == 'die':
+            attributes = event.get('Actor', {}).get('Attributes', {})
+            container_name = attributes.get('name')
+            container_id = event['id']
+            ufw_managed = attributes.get('UFW_MANAGED').capitalize() if 'UFW_MANAGED' in attributes else None
+
+            if ufw_managed == 'True':
                 ufw_length = subprocess.run(
-                    [f"ufw status numbered | grep {container_ip} | wc -l"],
+                    [f"ufw status numbered | grep '# {container_name}:{container_id}' | wc -l"],
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                     shell=True)
 
-                for i in range(int(ufw_length.stdout.strip().split("\n")[0])):
+                for _ in range(int(ufw_length.stdout.strip().split("\n")[0])):
                     awk = "'{print $2}'"
                     ufw_status = subprocess.run(
-                        [f"ufw status numbered | grep {container_ip} | awk -F \"[][]\" {awk} "],
+                        [f"ufw status numbered | grep '# {container_name}:{container_id}' | awk -F \"[][]\" {awk} "],
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                         shell=True)
 
@@ -192,7 +202,7 @@ def manage_ufw():
                                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                             shell=True)
                     ufw_delete_result = ufw_delete.stdout.split("\n")[1].strip()
-                    print(f"ufw-docker-automated: Cleaning UFW rule: container {container.name} deleted rule '{ufw_delete_result}'")
+                    print(f"ufw-docker-automated: Cleaning UFW rule: container {container_name} deleted rule '{ufw_delete_result}'")
 
 
 if __name__ == '__main__':
