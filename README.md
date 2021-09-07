@@ -37,8 +37,9 @@ services:
       - '8081:81'
     labels:
       UFW_MANAGED: 'TRUE'
+      UFW_ALLOW_FROM: '172.10.50.32;192.168.3.0/24;10.10.0.50/32-LAN'
     networks:
-      - my-net
+      - my-network
 
 networks:
   my-network:
