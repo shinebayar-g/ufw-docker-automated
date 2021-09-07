@@ -8,7 +8,7 @@ This conflicts with Ubuntu/Debian's `ufw` firewall manager and bypasses ufw rule
 Lot of [issues](https://github.com/moby/moby/issues/4737) were raised, but Docker didn't "fix" the issue.
 Fortunately some smart people found the solution to this problem and my favorite one is [ufw-docker](https://github.com/chaifeng/ufw-docker). You can read more about it on the project's readme.
 
-Original **ufw-docker** project is very easy to use, but it's static, doesn't track container IP changes. If original container's IP changes somehow, your rule will be invalid.
+Original **ufw-docker** project is very easy to use, but it's static, doesn't track container IP changes. If original container's IP changes somehow _(e.g server reboot)_, your rule will be invalid.
 This project solves that problem by listening to the Docker API events.
 
 ## Features
@@ -21,7 +21,7 @@ This project solves that problem by listening to the Docker API events.
 
 | Label key      | Value                                              | Example                                                  |
 | -------------- | -------------------------------------------------- | -------------------------------------------------------- |
-| UFW_MANAGED\*  | BOOLEAN                                            | `-l UFW_MANAGED=TRUE`                                    |
+| UFW_MANAGED\*  | TRUE                                               | `-l UFW_MANAGED=TRUE`                                    |
 | UFW_ALLOW_FROM | CIDR/IP-Comment , Semicolon separated, default=any | `-l UFW_ALLOW_FROM=192.168.3.0/24-LAN;10.10.0.50/32-DNS` |
 
 ## Example
