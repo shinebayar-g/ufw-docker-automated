@@ -39,7 +39,7 @@ func isUfwManaged(containerLabel string) bool {
 
 func handleUfwRule(ch <-chan ufwEvent) {
 	for event := range ch {
-		for port, portMaps := range event.container.NetworkSettings.Ports {
+		for port, portMaps := range event.container.HostConfig.PortBindings {
 			// List is non empty if port is published
 			if len(portMaps) > 0 {
 				ufwSourceList := []ufwSource{}
@@ -66,13 +66,19 @@ func handleUfwRule(ch <-chan ufwEvent) {
 					ufwSourceList = append(ufwSourceList, ufwSource{CIDR: "any"})
 				}
 
+				containerIP := event.container.NetworkSettings.IPAddress
+				if containerIP == "" {
+					networkMode := event.container.HostConfig.NetworkMode.NetworkName()
+					containerIP = event.container.NetworkSettings.Networks[networkMode].IPAddress
+				}
+
 				for _, source := range ufwSourceList {
 					var cmd *exec.Cmd
 					if event.msg.Action == "start" {
-						cmd = exec.Command("ufw", "route", "allow", "proto", port.Proto(), "from", source.CIDR, "to", event.container.NetworkSettings.IPAddress, "port", port.Port(), "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
+						cmd = exec.Command("ufw", "route", "allow", "proto", port.Proto(), "from", source.CIDR, "to", containerIP, "port", port.Port(), "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
 						fmt.Println("ufw-docker-automated: Adding rule:", cmd)
 					} else {
-						cmd = exec.Command("ufw", "route", "delete", "allow", "proto", port.Proto(), "from", source.CIDR, "to", event.container.NetworkSettings.IPAddress, "port", port.Port(), "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
+						cmd = exec.Command("ufw", "route", "delete", "allow", "proto", port.Proto(), "from", source.CIDR, "to", containerIP, "port", port.Port(), "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
 						fmt.Println("ufw-docker-automated: Deleting rule:", cmd)
 					}
 					var stdout, stderr bytes.Buffer
