@@ -1,3 +1,0 @@
-# This container's 80 and 81 ports will be allowed on UFW firewall
-
-docker run -d -p 8080:80 -p 8081:81 -l UFW_MANAGED=TRUE nginx:alpine

@@ -18,3 +18,5 @@
 *.so
 
 *.log
+
+*.code-workspace
