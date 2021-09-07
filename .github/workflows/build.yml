@@ -5,7 +5,7 @@
   pull_request:
     branches:
       - main
-name: Build
+name: build
 jobs:
   build:
     strategy:
