@@ -16,6 +16,7 @@ This project solves that problem by listening to the Docker API events.
 - Automate ufw-docker rules
 - Automate docker container's firewall with labels
 - Zero dependency, single binary installation
+- Supports docker-compose
 
 ## Supported labels
 
