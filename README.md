@@ -163,9 +163,10 @@ Wants=network-online.target
 Requires=ufw.service
 
 [Service]
-# To manage ufw rules, binary has to run as a root privileged user.
-User=root
-ExecStart=/path/to/ufw-docker-automated
+# To manage ufw rules, binary has to run as a root or sudo privileged user.
+User=ubuntu
+# Provide /path/to/ufw-docker-automated
+ExecStart=/usr/local/bin/ufw-docker-automated
 Restart=always
 
 [Install]
