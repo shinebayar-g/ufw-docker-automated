@@ -120,19 +120,9 @@ func main() {
 	for {
 		select {
 		case msg := <-messages:
-			if msg.Type == "container" && msg.Action == "start" {
-				if ufwManaged := msg.Actor.Attributes["UFW_MANAGED"]; isUfwManaged(ufwManaged) {
-					container, err := cli.ContainerInspect(ctx, msg.ID)
-					if err != nil {
-						fmt.Println("ufw-docker-automated: Couldn't inspect container:", err)
-						continue
-					}
-					ch <- ufwEvent{container, msg}
-				}
-			}
 			// We cannot get container network details once it's stopped, So
 			// we're deleting ufw rules as soon as container receives stop signal before it's stopped.
-			if msg.Type == "container" && msg.Action == "kill" {
+			if msg.Type == "container" && (msg.Action == "start" || msg.Action == "kill") {
 				if ufwManaged := msg.Actor.Attributes["UFW_MANAGED"]; isUfwManaged(ufwManaged) {
 					container, err := cli.ContainerInspect(ctx, msg.ID)
 					if err != nil {
