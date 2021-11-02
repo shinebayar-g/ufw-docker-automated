@@ -75,10 +75,10 @@ func handleUfwRule(ch <-chan ufwEvent) {
 				for _, source := range ufwSourceList {
 					var cmd *exec.Cmd
 					if event.msg.Action == "start" {
-						cmd = exec.Command("ufw", "route", "allow", "proto", port.Proto(), "from", source.CIDR, "to", containerIP, "port", port.Port(), "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
+						cmd = exec.Command("sudo", "ufw", "route", "allow", "proto", port.Proto(), "from", source.CIDR, "to", containerIP, "port", port.Port(), "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
 						fmt.Println("ufw-docker-automated: Adding rule:", cmd)
 					} else {
-						cmd = exec.Command("ufw", "route", "delete", "allow", "proto", port.Proto(), "from", source.CIDR, "to", containerIP, "port", port.Port(), "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
+						cmd = exec.Command("sudo", "ufw", "route", "delete", "allow", "proto", port.Proto(), "from", source.CIDR, "to", containerIP, "port", port.Port(), "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
 						fmt.Println("ufw-docker-automated: Deleting rule:", cmd)
 					}
 					var stdout, stderr bytes.Buffer
