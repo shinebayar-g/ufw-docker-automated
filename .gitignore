@@ -20,3 +20,4 @@
 *.log
 
 *.code-workspace
+.vagrant
