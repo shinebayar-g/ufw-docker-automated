@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/docker/docker/api/types"
@@ -16,6 +17,7 @@ import (
 
 type ufwSource struct {
 	CIDR    string
+	port    string
 	comment string
 }
 
@@ -56,8 +58,19 @@ func handleUfwRule(ch <-chan ufwEvent) {
 							}
 						}
 
-						if len(ip) > 1 {
-							ufwSourceList = append(ufwSourceList, ufwSource{CIDR: ip[0], comment: fmt.Sprintf(" %s", ip[1])})
+						// Example: 172.10.5.0-LAN or 172.10.5.0-80
+						if len(ip) == 2 {
+							if _, err := strconv.Atoi(ip[1]); err == nil {
+								// case: 172.10.5.0-80
+								ufwSourceList = append(ufwSourceList, ufwSource{CIDR: ip[0], port: ip[1]})
+							} else {
+								// case: 172.10.5.0-LAN
+								ufwSourceList = append(ufwSourceList, ufwSource{CIDR: ip[0], comment: fmt.Sprintf(" %s", ip[1])})
+							}
+							// Example: 172.10.5.0-80-LAN
+						} else if len(ip) == 3 {
+							ufwSourceList = append(ufwSourceList, ufwSource{CIDR: ip[0], port: ip[1], comment: fmt.Sprintf(" %s", ip[2])})
+							// Should be just IP address without comment or port specified.
 						} else {
 							ufwSourceList = append(ufwSourceList, ufwSource{CIDR: ip[0]})
 						}
@@ -67,6 +80,7 @@ func handleUfwRule(ch <-chan ufwEvent) {
 				}
 
 				containerIP := event.container.NetworkSettings.IPAddress
+				// If docker-compose, container IP is defined here
 				if containerIP == "" {
 					networkMode := event.container.HostConfig.NetworkMode.NetworkName()
 					containerIP = event.container.NetworkSettings.Networks[networkMode].IPAddress
@@ -74,13 +88,24 @@ func handleUfwRule(ch <-chan ufwEvent) {
 
 				for _, source := range ufwSourceList {
 					var cmd *exec.Cmd
+					var containerPort string
+
+					if source.port == "" {
+						containerPort = port.Port()
+					} else {
+						// Because we're overriding port.Proto() loop element with something static,
+						// it'll create duplicate ufw rules. But ufw service handles that correctly.
+						containerPort = source.port
+					}
+
 					if event.msg.Action == "start" {
-						cmd = exec.Command("sudo", "ufw", "route", "allow", "proto", port.Proto(), "from", source.CIDR, "to", containerIP, "port", port.Port(), "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
+						cmd = exec.Command("sudo", "ufw", "route", "allow", "proto", port.Proto(), "from", source.CIDR, "to", containerIP, "port", containerPort, "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
 						fmt.Println("ufw-docker-automated: Adding rule:", cmd)
 					} else {
-						cmd = exec.Command("sudo", "ufw", "route", "delete", "allow", "proto", port.Proto(), "from", source.CIDR, "to", containerIP, "port", port.Port(), "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
+						cmd = exec.Command("sudo", "ufw", "route", "delete", "allow", "proto", port.Proto(), "from", source.CIDR, "to", containerIP, "port", containerPort, "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
 						fmt.Println("ufw-docker-automated: Deleting rule:", cmd)
 					}
+
 					var stdout, stderr bytes.Buffer
 					cmd.Stdout = &stdout
 					cmd.Stderr = &stderr

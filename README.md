@@ -20,10 +20,10 @@ This project solves that problem by listening to the Docker API events.
 
 ## Supported labels
 
-| Label key      | Value                                              | Example                                                  |
-| -------------- | -------------------------------------------------- | -------------------------------------------------------- |
-| UFW_MANAGED\*  | TRUE                                               | `-l UFW_MANAGED=TRUE`                                    |
-| UFW_ALLOW_FROM | CIDR/IP-Comment , Semicolon separated, default=any | `-l UFW_ALLOW_FROM=192.168.3.0/24-LAN;10.10.0.50/32-DNS` |
+| Label key      | Value / Syntax                                                  | Example                                                     |
+| -------------- | --------------------------------------------------------------- | ----------------------------------------------------------- |
+| UFW_MANAGED\*  | TRUE                                                            | `-l UFW_MANAGED=TRUE`                                       |
+| UFW_ALLOW_FROM | CIDR/IP-SpecificPort-Comment , Semicolon separated, default=any | `-l UFW_ALLOW_FROM=192.168.3.0/24-LAN;10.10.0.50/32-53-DNS` |
 
 ## Example
 
@@ -38,7 +38,7 @@ services:
       - '8081:81'
     labels:
       UFW_MANAGED: 'TRUE'
-      UFW_ALLOW_FROM: '172.10.50.32;192.168.3.0/24;10.10.0.50/32-LAN'
+      UFW_ALLOW_FROM: '172.10.50.32;192.168.3.0/24;10.10.0.50/32-8080-LAN'
     networks:
       - my-network
 
@@ -59,6 +59,9 @@ networks:
 
 # Allow from certain IP address, CIDR ranges + comments
 ➜ docker run -d -p 8086:86 -p 8087:87 -l UFW_MANAGED=TRUE -l UFW_ALLOW_FROM="172.10.5.0;192.168.3.0/24-LAN;10.10.0.50/32-DNS" nginx:alpine
+
+# Allow from certain IP address, CIDR ranges to different Port + comments
+➜ docker run -d -p 8088:88 -p 8089:89 -p 8090:90 -l UFW_MANAGED=TRUE -l UFW_ALLOW_FROM="0.0.0.0/0-88-Internet;192.168.3.0/24-89-LAN;10.10.0.50-90" nginx:alpine
 
 # Results
 ➜ sudo ufw status
@@ -82,6 +85,9 @@ To                         Action      From
 172.17.0.5 87/tcp          ALLOW FWD   172.10.5.0                 # funny_aryabhata:9eb642f07bde
 172.17.0.5 87/tcp          ALLOW FWD   192.168.3.0/24             # funny_aryabhata:9eb642f07bde LAN
 172.17.0.5 87/tcp          ALLOW FWD   10.10.0.50                 # funny_aryabhata:9eb642f07bde DNS
+172.17.0.6 88/tcp          ALLOW FWD   Anywhere                   # awesome_leavitt:6ebdb0c87a56 Internet
+172.17.0.6 89/tcp          ALLOW FWD   192.168.3.0/24             # awesome_leavitt:6ebdb0c87a56 LAN
+172.17.0.6 90/tcp          ALLOW FWD   10.10.0.50                 # awesome_leavitt:6ebdb0c87a56
 ```
 
 Once containers are stopped their ufw entries will be deleted.
