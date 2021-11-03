@@ -132,6 +132,7 @@ func createClient() *client.Client {
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println("ufw-docker-automated: Connecting to the Docker API. Listening for events..")
 	return cli
 }
 
