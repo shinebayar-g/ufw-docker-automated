@@ -7,6 +7,7 @@ import (
 	"net"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
@@ -101,18 +102,27 @@ func handleUfwRule(ch <-chan ufwEvent) {
 	}
 }
 
-func main() {
-	ctx := context.Background()
+func createClient() *client.Client {
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		panic(err)
 	}
+	return cli
+}
 
+func addFilters(cli *client.Client, ctx *context.Context) (<-chan events.Message, <-chan error) {
+	_, cancelContext := context.WithCancel(*ctx)
+	cancelContext()
 	filter := filters.NewArgs()
 	filter.Add("type", "container")
 	filter.Add("type", "network")
+	return cli.Events(*ctx, types.EventsOptions{Filters: filter})
+}
 
-	messages, errors := cli.Events(ctx, types.EventsOptions{Filters: filter})
+func main() {
+	cli := createClient()
+	ctx := context.Background()
+	messages, errors := addFilters(cli, &ctx)
 
 	ch := make(chan ufwEvent)
 	go handleUfwRule(ch)
@@ -145,6 +155,10 @@ func main() {
 		case err := <-errors:
 			if err != nil {
 				fmt.Println("ufw-docker-automated: Received an error:", err)
+				time.Sleep(3 * time.Second)
+				fmt.Println("reconnecing")
+				cli = createClient()
+				messages, errors = addFilters(cli, &ctx)
 			}
 		}
 	}
