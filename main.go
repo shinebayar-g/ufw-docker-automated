@@ -54,7 +54,7 @@ func handleUfwRule(ch <-chan ufwEvent) {
 
 						if !checkIP(ip[0]) {
 							if !checkCIDR(ip[0]) {
-								fmt.Printf("ufw-docker-automated: address %s is not valid!\n", ip[0])
+								fmt.Printf("ufw-docker-automated: Address %s is not valid!\n", ip[0])
 								continue
 							}
 						}
@@ -170,8 +170,8 @@ func main() {
 		case err := <-errors:
 			if err != nil {
 				fmt.Println("ufw-docker-automated: Received an error:", err)
-				time.Sleep(3 * time.Second)
-				fmt.Println("ufw-docker-automated: reconnecing")
+				time.Sleep(5 * time.Second)
+				fmt.Println("ufw-docker-automated: Reconnecting..")
 				cli = createClient()
 				messages, errors = addFilters(cli, &ctx)
 			}
