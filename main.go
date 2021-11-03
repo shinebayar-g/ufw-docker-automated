@@ -156,7 +156,7 @@ func main() {
 			if err != nil {
 				fmt.Println("ufw-docker-automated: Received an error:", err)
 				time.Sleep(3 * time.Second)
-				fmt.Println("reconnecing")
+				fmt.Println("ufw-docker-automated: reconnecing")
 				cli = createClient()
 				messages, errors = addFilters(cli, &ctx)
 			}
