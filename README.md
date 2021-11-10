@@ -20,10 +20,12 @@ This project solves that problem by listening to the Docker API events.
 
 ## Supported labels
 
-| Label key      | Value / Syntax                                                  | Example                                                     |
-| -------------- | --------------------------------------------------------------- | ----------------------------------------------------------- |
-| UFW_MANAGED\*  | TRUE                                                            | `-l UFW_MANAGED=TRUE`                                       |
-| UFW_ALLOW_FROM | CIDR/IP-SpecificPort-Comment , Semicolon separated, default=any | `-l UFW_ALLOW_FROM=192.168.3.0/24-LAN;10.10.0.50/32-53-DNS` |
+| Label key      | Value / Syntax                                                   | Example                                                     |
+| -------------- | ---------------------------------------------------------------- | ----------------------------------------------------------- |
+| UFW_MANAGED    | TRUE _(Required for all rules)_                                  | `-l UFW_MANAGED=TRUE`                                       |
+| UFW_ALLOW_FROM | CIDR/IP-SpecificPort-Comment , Semicolon separated, default=any  | `-l UFW_ALLOW_FROM=192.168.3.0/24-LAN;10.10.0.50/32-53-DNS` |
+| UFW_DENY_OUT   | TRUE _(Required if outbound rules are defined)_                  | `-l UFW_DENY_OUT=TRUE`                                      |
+| UFW_ALLOW_TO   | CIDR/IP-SpecificPort-Comment , Semicolon separated, default=none | `-l UFW_ALLOW_TO=192.168.3.0/24-LAN;10.10.0.50/32-53-DNS`   |
 
 ## Example
 
@@ -39,6 +41,8 @@ services:
     labels:
       UFW_MANAGED: 'TRUE'
       UFW_ALLOW_FROM: '172.10.50.32;192.168.3.0/24;10.10.0.50/32-8080-LAN'
+      UFW_DENY_OUT: 'TRUE'
+      UFW_ALLOW_TO: '8.8.8.8-53-GoogleDNS;1.1.1.0/24-53-CloudflareDNS;192.168.10.24-8080-LAN'
     networks:
       - my-network
 
@@ -51,17 +55,23 @@ networks:
 # Allow from any
 ➜ docker run -d -p 8080:80 -p 8081:81 -l UFW_MANAGED=TRUE nginx:alpine
 
+# Allow from any + deny all out
+➜ docker run -d -p 8082:82 -p 8083:83 -l UFW_MANAGED=TRUE -l UFW_DENY_OUT=TRUE nginx:alpine
+
 # Allow from certain IP address
-➜ docker run -d -p 8082:82 -p 8083:83 -l UFW_MANAGED=TRUE -l UFW_ALLOW_FROM=192.168.3.0 nginx:alpine
+➜ docker run -d -p 8084:84 -p 8085:85 -l UFW_MANAGED=TRUE -l UFW_ALLOW_FROM=192.168.3.0 nginx:alpine
 
 # Allow from certain CIDR ranges
-➜ docker run -d -p 8084:84 -p 8085:85 -l UFW_MANAGED=TRUE -l UFW_ALLOW_FROM="192.168.3.0/24;10.10.0.50/32" nginx:alpine
+➜ docker run -d -p 8086:86 -p 8087:87 -l UFW_MANAGED=TRUE -l UFW_ALLOW_FROM="192.168.3.0/24;10.10.0.50/32" nginx:alpine
 
 # Allow from certain IP address, CIDR ranges + comments
-➜ docker run -d -p 8086:86 -p 8087:87 -l UFW_MANAGED=TRUE -l UFW_ALLOW_FROM="172.10.5.0;192.168.3.0/24-LAN;10.10.0.50/32-DNS" nginx:alpine
+➜ docker run -d -p 8088:88 -p 8089:89 -l UFW_MANAGED=TRUE -l UFW_ALLOW_FROM="172.10.5.0;192.168.3.0/24-LAN;10.10.0.50/32-DNS" nginx:alpine
+
+# Allow from certain IP address, CIDR ranges + deny all out + allow to some IP range (specific port defined) + comments
+➜ docker run -d -p 8090:90 -p 8091:91 -l UFW_MANAGED=TRUE -l UFW_ALLOW_FROM="172.10.5.0;192.168.3.0/24-LAN;10.10.0.50/32-DNS" -l UFW_DENY_OUT=TRUE -l UFW_ALLOW_TO="8.8.8.8-53-GoogleDNS;1.1.1.0/24-53-CloudflareDNS;192.168.10.0/24-LAN" nginx:alpine
 
 # Allow from certain IP address, CIDR ranges to different Port + comments
-➜ docker run -d -p 8088:88 -p 8089:89 -p 8090:90 -l UFW_MANAGED=TRUE -l UFW_ALLOW_FROM="0.0.0.0/0-88-Internet;192.168.3.0/24-89-LAN;10.10.0.50-90" nginx:alpine
+➜ docker run -d -p 8092:92 -p 8093:93 -p 8094:94 -l UFW_MANAGED=TRUE -l UFW_ALLOW_FROM="0.0.0.0/0-88-Internet;192.168.3.0/24-89-LAN;10.10.0.50-90" nginx:alpine
 
 # Results
 ➜ sudo ufw status
@@ -71,23 +81,36 @@ To                         Action      From
 --                         ------      ----
 22                         ALLOW       Anywhere
 
-172.17.0.2 81/tcp          ALLOW FWD   Anywhere                   # crazy_keller:e875afe93296
-172.17.0.2 80/tcp          ALLOW FWD   Anywhere                   # crazy_keller:e875afe93296
-172.17.0.3 82/tcp          ALLOW FWD   192.168.3.0                # epic_lederberg:7c5001108663
-172.17.0.3 83/tcp          ALLOW FWD   192.168.3.0                # epic_lederberg:7c5001108663
-172.17.0.4 84/tcp          ALLOW FWD   192.168.3.0/24             # beautiful_taussig:089400a84073
-172.17.0.4 84/tcp          ALLOW FWD   10.10.0.50                 # beautiful_taussig:089400a84073
-172.17.0.4 85/tcp          ALLOW FWD   192.168.3.0/24             # beautiful_taussig:089400a84073
-172.17.0.4 85/tcp          ALLOW FWD   10.10.0.50                 # beautiful_taussig:089400a84073
-172.17.0.5 86/tcp          ALLOW FWD   172.10.5.0                 # funny_aryabhata:9eb642f07bde
-172.17.0.5 86/tcp          ALLOW FWD   192.168.3.0/24             # funny_aryabhata:9eb642f07bde LAN
-172.17.0.5 86/tcp          ALLOW FWD   10.10.0.50                 # funny_aryabhata:9eb642f07bde DNS
-172.17.0.5 87/tcp          ALLOW FWD   172.10.5.0                 # funny_aryabhata:9eb642f07bde
-172.17.0.5 87/tcp          ALLOW FWD   192.168.3.0/24             # funny_aryabhata:9eb642f07bde LAN
-172.17.0.5 87/tcp          ALLOW FWD   10.10.0.50                 # funny_aryabhata:9eb642f07bde DNS
-172.17.0.6 88/tcp          ALLOW FWD   Anywhere                   # awesome_leavitt:6ebdb0c87a56 Internet
-172.17.0.6 89/tcp          ALLOW FWD   192.168.3.0/24             # awesome_leavitt:6ebdb0c87a56 LAN
-172.17.0.6 90/tcp          ALLOW FWD   10.10.0.50                 # awesome_leavitt:6ebdb0c87a56
+172.17.0.2 80/tcp          ALLOW FWD   Anywhere                   # pensive_davinci:bb01e89284b6
+172.17.0.2 81/tcp          ALLOW FWD   Anywhere                   # pensive_davinci:bb01e89284b6
+172.17.0.3 83/tcp          ALLOW FWD   Anywhere                   # vigorous_wescoff:97403d2d7e08
+172.17.0.3 82/tcp          ALLOW FWD   Anywhere                   # vigorous_wescoff:97403d2d7e08
+Anywhere                   DENY FWD    172.17.0.3                 # vigorous_wescoff:97403d2d7e08
+172.17.0.4 84/tcp          ALLOW FWD   192.168.3.0                # sweet_poitras:b7f4cbdd363b
+172.17.0.4 85/tcp          ALLOW FWD   192.168.3.0                # sweet_poitras:b7f4cbdd363b
+172.17.0.5 87/tcp          ALLOW FWD   192.168.3.0/24             # objective_moore:473a2fd127c4
+172.17.0.5 87/tcp          ALLOW FWD   10.10.0.50                 # objective_moore:473a2fd127c4
+172.17.0.5 86/tcp          ALLOW FWD   192.168.3.0/24             # objective_moore:473a2fd127c4
+172.17.0.5 86/tcp          ALLOW FWD   10.10.0.50                 # objective_moore:473a2fd127c4
+172.17.0.6 89/tcp          ALLOW FWD   172.10.5.0                 # goofy_dijkstra:3c4d49d8e118
+172.17.0.6 89/tcp          ALLOW FWD   192.168.3.0/24             # goofy_dijkstra:3c4d49d8e118 LAN
+172.17.0.6 89/tcp          ALLOW FWD   10.10.0.50                 # goofy_dijkstra:3c4d49d8e118 DNS
+172.17.0.6 88/tcp          ALLOW FWD   172.10.5.0                 # goofy_dijkstra:3c4d49d8e118
+172.17.0.6 88/tcp          ALLOW FWD   192.168.3.0/24             # goofy_dijkstra:3c4d49d8e118 LAN
+172.17.0.6 88/tcp          ALLOW FWD   10.10.0.50                 # goofy_dijkstra:3c4d49d8e118 DNS
+172.17.0.7 90/tcp          ALLOW FWD   172.10.5.0                 # wonderful_wilson:447017665de8
+172.17.0.7 90/tcp          ALLOW FWD   192.168.3.0/24             # wonderful_wilson:447017665de8 LAN
+172.17.0.7 90/tcp          ALLOW FWD   10.10.0.50                 # wonderful_wilson:447017665de8 DNS
+172.17.0.7 91/tcp          ALLOW FWD   172.10.5.0                 # wonderful_wilson:447017665de8
+172.17.0.7 91/tcp          ALLOW FWD   192.168.3.0/24             # wonderful_wilson:447017665de8 LAN
+172.17.0.7 91/tcp          ALLOW FWD   10.10.0.50                 # wonderful_wilson:447017665de8 DNS
+8.8.8.8 53                 ALLOW FWD   172.17.0.7                 # wonderful_wilson:447017665de8 GoogleDNS
+1.1.1.0/24 53              ALLOW FWD   172.17.0.7                 # wonderful_wilson:447017665de8 CloudflareDNS
+192.168.10.0/24            ALLOW FWD   172.17.0.7                 # wonderful_wilson:447017665de8 LAN
+Anywhere                   DENY FWD    172.17.0.7                 # wonderful_wilson:447017665de8
+172.17.0.8 88/tcp          ALLOW FWD   Anywhere                   # stoic_roentgen:e34a3201c01b Internet
+172.17.0.8 89/tcp          ALLOW FWD   192.168.3.0/24             # stoic_roentgen:e34a3201c01b LAN
+172.17.0.8 90/tcp          ALLOW FWD   10.10.0.50                 # stoic_roentgen:e34a3201c01b
 ```
 
 Once containers are stopped their ufw entries will be deleted.
@@ -189,4 +212,4 @@ sudo systemctl start ufw-docker-automated
 
 ## Feedback
 
-If you encounter any issues please feel free to open an issue.
+If you encounter any issues please feel free to open an [issue](https://github.com/shinebayar-g/ufw-docker-automated/issues).

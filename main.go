@@ -42,14 +42,22 @@ func isUfwManaged(containerLabel string) bool {
 
 func handleUfwRule(ch <-chan ufwEvent) {
 	for event := range ch {
+		containerIP := event.container.NetworkSettings.IPAddress
+		// If docker-compose, container IP is defined here
+		if containerIP == "" {
+			networkMode := event.container.HostConfig.NetworkMode.NetworkName()
+			containerIP = event.container.NetworkSettings.Networks[networkMode].IPAddress
+		}
+
+		// Handle inbound rules
 		for port, portMaps := range event.container.HostConfig.PortBindings {
 			// List is non empty if port is published
 			if len(portMaps) > 0 {
-				ufwSourceList := []ufwSource{}
+				ufwAllowFromList := []ufwSource{}
 				if event.msg.Actor.Attributes["UFW_ALLOW_FROM"] != "" {
-					ufwAllowFromList := strings.Split(event.msg.Actor.Attributes["UFW_ALLOW_FROM"], ";")
+					ufwAllowFromLabelParsed := strings.Split(event.msg.Actor.Attributes["UFW_ALLOW_FROM"], ";")
 
-					for _, allowFrom := range ufwAllowFromList {
+					for _, allowFrom := range ufwAllowFromLabelParsed {
 						ip := strings.Split(allowFrom, "-")
 
 						if !checkIP(ip[0]) {
@@ -63,31 +71,24 @@ func handleUfwRule(ch <-chan ufwEvent) {
 						if len(ip) == 2 {
 							if _, err := strconv.Atoi(ip[1]); err == nil {
 								// case: 172.10.5.0-80
-								ufwSourceList = append(ufwSourceList, ufwSource{CIDR: ip[0], port: ip[1]})
+								ufwAllowFromList = append(ufwAllowFromList, ufwSource{CIDR: ip[0], port: ip[1]})
 							} else {
 								// case: 172.10.5.0-LAN
-								ufwSourceList = append(ufwSourceList, ufwSource{CIDR: ip[0], comment: fmt.Sprintf(" %s", ip[1])})
+								ufwAllowFromList = append(ufwAllowFromList, ufwSource{CIDR: ip[0], comment: fmt.Sprintf(" %s", ip[1])})
 							}
 							// Example: 172.10.5.0-80-LAN
 						} else if len(ip) == 3 {
-							ufwSourceList = append(ufwSourceList, ufwSource{CIDR: ip[0], port: ip[1], comment: fmt.Sprintf(" %s", ip[2])})
+							ufwAllowFromList = append(ufwAllowFromList, ufwSource{CIDR: ip[0], port: ip[1], comment: fmt.Sprintf(" %s", ip[2])})
 							// Should be just IP address without comment or port specified.
 						} else {
-							ufwSourceList = append(ufwSourceList, ufwSource{CIDR: ip[0]})
+							ufwAllowFromList = append(ufwAllowFromList, ufwSource{CIDR: ip[0]})
 						}
 					}
 				} else {
-					ufwSourceList = append(ufwSourceList, ufwSource{CIDR: "any"})
+					ufwAllowFromList = append(ufwAllowFromList, ufwSource{CIDR: "any"})
 				}
 
-				containerIP := event.container.NetworkSettings.IPAddress
-				// If docker-compose, container IP is defined here
-				if containerIP == "" {
-					networkMode := event.container.HostConfig.NetworkMode.NetworkName()
-					containerIP = event.container.NetworkSettings.Networks[networkMode].IPAddress
-				}
-
-				for _, source := range ufwSourceList {
+				for _, source := range ufwAllowFromList {
 					var cmd *exec.Cmd
 					var containerPort string
 
@@ -122,6 +123,96 @@ func handleUfwRule(ch <-chan ufwEvent) {
 				// ufw route allow proto <tcp|udp> <source> to <container_ip> port <port> comment <comment>
 				// ufw route delete allow proto tcp from any to 172.17.0.2 port 80 comment "Comment"
 				// ufw route delete allow proto <tcp|udp> <source> to <container_ip> port <port> comment <comment>
+			}
+		}
+
+		// Handle outbound rules
+		if strings.ToUpper(event.msg.Actor.Attributes["UFW_DENY_OUT"]) == "TRUE" {
+
+			if event.msg.Actor.Attributes["UFW_ALLOW_TO"] != "" {
+				ufwAllowToList := []ufwSource{}
+				ufwAllowToLabelParsed := strings.Split(event.msg.Actor.Attributes["UFW_ALLOW_TO"], ";")
+
+				for _, allowTo := range ufwAllowToLabelParsed {
+					ip := strings.Split(allowTo, "-")
+
+					if !checkIP(ip[0]) {
+						if !checkCIDR(ip[0]) {
+							fmt.Printf("ufw-docker-automated: Address %s is not valid!\n", ip[0])
+							continue
+						}
+					}
+
+					// Example: 172.10.5.0-LAN or 172.10.5.0-80
+					if len(ip) == 2 {
+						if _, err := strconv.Atoi(ip[1]); err == nil {
+							// case: 172.10.5.0-80
+							ufwAllowToList = append(ufwAllowToList, ufwSource{CIDR: ip[0], port: ip[1]})
+						} else {
+							// case: 172.10.5.0-LAN
+							ufwAllowToList = append(ufwAllowToList, ufwSource{CIDR: ip[0], comment: fmt.Sprintf(" %s", ip[1])})
+						}
+						// Example: 172.10.5.0-80-LAN
+					} else if len(ip) == 3 {
+						ufwAllowToList = append(ufwAllowToList, ufwSource{CIDR: ip[0], port: ip[1], comment: fmt.Sprintf(" %s", ip[2])})
+						// Should be just IP address without comment or port specified.
+					} else {
+						ufwAllowToList = append(ufwAllowToList, ufwSource{CIDR: ip[0]})
+					}
+				}
+
+				for _, source := range ufwAllowToList {
+					var cmd *exec.Cmd
+
+					if event.msg.Action == "start" {
+						if source.port == "" {
+							cmd = exec.Command("sudo", "ufw", "route", "allow", "from", containerIP, "to", source.CIDR, "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
+						} else {
+							cmd = exec.Command("sudo", "ufw", "route", "allow", "from", containerIP, "to", source.CIDR, "port", source.port, "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
+						}
+						fmt.Println("ufw-docker-automated: Adding rule:", cmd)
+					} else {
+						if source.port == "" {
+							cmd = exec.Command("sudo", "ufw", "route", "delete", "allow", "from", containerIP, "to", source.CIDR, "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
+						} else {
+							cmd = exec.Command("sudo", "ufw", "route", "delete", "allow", "from", containerIP, "to", source.CIDR, "port", source.port, "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
+						}
+						fmt.Println("ufw-docker-automated: Deleting rule:", cmd)
+					}
+
+					var stdout, stderr bytes.Buffer
+					cmd.Stdout = &stdout
+					cmd.Stderr = &stderr
+					err := cmd.Run()
+
+					if err != nil || stderr.String() != "" {
+						fmt.Println("ufw:", err, stderr.String())
+					} else {
+						fmt.Println("ufw:", stdout.String())
+					}
+				}
+			}
+
+			// Handle deny all out
+			var cmd *exec.Cmd
+
+			if event.msg.Action == "start" {
+				cmd = exec.Command("sudo", "ufw", "route", "deny", "from", containerIP, "to", "any", "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12])
+				fmt.Println("ufw-docker-automated: Adding rule:", cmd)
+			} else {
+				cmd = exec.Command("sudo", "ufw", "route", "delete", "deny", "from", containerIP, "to", "any", "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12])
+				fmt.Println("ufw-docker-automated: Deleting rule:", cmd)
+			}
+
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stderr
+			err := cmd.Run()
+
+			if err != nil || stderr.String() != "" {
+				fmt.Println("ufw:", err, stderr.String())
+			} else {
+				fmt.Println("ufw:", stdout.String())
 			}
 		}
 	}
