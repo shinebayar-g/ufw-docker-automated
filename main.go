@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"os/exec"
 	"strconv"
@@ -23,8 +24,8 @@ type ufwSource struct {
 }
 
 type ufwEvent struct {
-	container types.ContainerJSON
-	msg       events.Message
+	container *types.ContainerJSON
+	msg       *events.Message
 }
 
 func checkIP(ip string) bool {
@@ -40,13 +41,18 @@ func isUfwManaged(containerLabel string) bool {
 	return strings.ToUpper(containerLabel) == "TRUE"
 }
 
-func handleUfwRule(ch <-chan ufwEvent) {
+func handleUfwRule(ch <-chan *ufwEvent) {
 	for event := range ch {
 		containerIP := event.container.NetworkSettings.IPAddress
 		// If docker-compose, container IP is defined here
 		if containerIP == "" {
 			networkMode := event.container.HostConfig.NetworkMode.NetworkName()
-			containerIP = event.container.NetworkSettings.Networks[networkMode].IPAddress
+			if ip, ok := event.container.NetworkSettings.Networks[networkMode]; ok {
+				containerIP = ip.IPAddress
+			} else {
+				log.Println("ufw-docker-automated: Couldn't detect the container IP address.")
+				continue
+			}
 		}
 
 		// Handle inbound rules
@@ -62,7 +68,7 @@ func handleUfwRule(ch <-chan ufwEvent) {
 
 						if !checkIP(ip[0]) {
 							if !checkCIDR(ip[0]) {
-								fmt.Printf("ufw-docker-automated: Address %s is not valid!\n", ip[0])
+								log.Printf("ufw-docker-automated: Address %s is not valid!\n", ip[0])
 								continue
 							}
 						}
@@ -102,10 +108,10 @@ func handleUfwRule(ch <-chan ufwEvent) {
 
 					if event.msg.Action == "start" {
 						cmd = exec.Command("sudo", "ufw", "route", "allow", "proto", port.Proto(), "from", source.CIDR, "to", containerIP, "port", containerPort, "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
-						fmt.Println("ufw-docker-automated: Adding rule:", cmd)
+						log.Println("ufw-docker-automated: Adding rule:", cmd)
 					} else {
 						cmd = exec.Command("sudo", "ufw", "route", "delete", "allow", "proto", port.Proto(), "from", source.CIDR, "to", containerIP, "port", containerPort, "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
-						fmt.Println("ufw-docker-automated: Deleting rule:", cmd)
+						log.Println("ufw-docker-automated: Deleting rule:", cmd)
 					}
 
 					var stdout, stderr bytes.Buffer
@@ -114,9 +120,9 @@ func handleUfwRule(ch <-chan ufwEvent) {
 					err := cmd.Run()
 
 					if err != nil || stderr.String() != "" {
-						fmt.Println("ufw:", err, stderr.String())
+						log.Println("ufw:", err, stderr.String())
 					} else {
-						fmt.Println("ufw:", stdout.String())
+						log.Println("ufw:", stdout.String())
 					}
 				}
 				// ufw route allow proto tcp from any to 172.17.0.2 port 80 comment "Comment"
@@ -138,7 +144,7 @@ func handleUfwRule(ch <-chan ufwEvent) {
 
 					if !checkIP(ip[0]) {
 						if !checkCIDR(ip[0]) {
-							fmt.Printf("ufw-docker-automated: Address %s is not valid!\n", ip[0])
+							log.Printf("ufw-docker-automated: Address %s is not valid!\n", ip[0])
 							continue
 						}
 					}
@@ -170,14 +176,14 @@ func handleUfwRule(ch <-chan ufwEvent) {
 						} else {
 							cmd = exec.Command("sudo", "ufw", "route", "allow", "from", containerIP, "to", source.CIDR, "port", source.port, "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
 						}
-						fmt.Println("ufw-docker-automated: Adding rule:", cmd)
+						log.Println("ufw-docker-automated: Adding rule:", cmd)
 					} else {
 						if source.port == "" {
 							cmd = exec.Command("sudo", "ufw", "route", "delete", "allow", "from", containerIP, "to", source.CIDR, "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
 						} else {
 							cmd = exec.Command("sudo", "ufw", "route", "delete", "allow", "from", containerIP, "to", source.CIDR, "port", source.port, "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12]+source.comment)
 						}
-						fmt.Println("ufw-docker-automated: Deleting rule:", cmd)
+						log.Println("ufw-docker-automated: Deleting rule:", cmd)
 					}
 
 					var stdout, stderr bytes.Buffer
@@ -186,9 +192,9 @@ func handleUfwRule(ch <-chan ufwEvent) {
 					err := cmd.Run()
 
 					if err != nil || stderr.String() != "" {
-						fmt.Println("ufw:", err, stderr.String())
+						log.Println("ufw:", err, stderr.String())
 					} else {
-						fmt.Println("ufw:", stdout.String())
+						log.Println("ufw:", stdout.String())
 					}
 				}
 			}
@@ -198,10 +204,10 @@ func handleUfwRule(ch <-chan ufwEvent) {
 
 			if event.msg.Action == "start" {
 				cmd = exec.Command("sudo", "ufw", "route", "deny", "from", containerIP, "to", "any", "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12])
-				fmt.Println("ufw-docker-automated: Adding rule:", cmd)
+				log.Println("ufw-docker-automated: Adding rule:", cmd)
 			} else {
 				cmd = exec.Command("sudo", "ufw", "route", "delete", "deny", "from", containerIP, "to", "any", "comment", event.msg.Actor.Attributes["name"]+":"+event.msg.ID[:12])
-				fmt.Println("ufw-docker-automated: Deleting rule:", cmd)
+				log.Println("ufw-docker-automated: Deleting rule:", cmd)
 			}
 
 			var stdout, stderr bytes.Buffer
@@ -210,9 +216,9 @@ func handleUfwRule(ch <-chan ufwEvent) {
 			err := cmd.Run()
 
 			if err != nil || stderr.String() != "" {
-				fmt.Println("ufw:", err, stderr.String())
+				log.Println("ufw:", err, stderr.String())
 			} else {
-				fmt.Println("ufw:", stdout.String())
+				log.Println("ufw:", stdout.String())
 			}
 		}
 	}
@@ -223,7 +229,7 @@ func createClient() *client.Client {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("ufw-docker-automated: Connecting to the Docker API. Listening for events..")
+	log.Println("ufw-docker-automated: Connecting to the Docker API. Listening for events..")
 	return cli
 }
 
@@ -232,7 +238,6 @@ func addFilters(cli *client.Client, ctx *context.Context) (<-chan events.Message
 	cancelContext()
 	filter := filters.NewArgs()
 	filter.Add("type", "container")
-	filter.Add("type", "network")
 	return cli.Events(*ctx, types.EventsOptions{Filters: filter})
 }
 
@@ -241,7 +246,7 @@ func main() {
 	ctx := context.Background()
 	messages, errors := addFilters(cli, &ctx)
 
-	ch := make(chan ufwEvent)
+	ch := make(chan *ufwEvent)
 	go handleUfwRule(ch)
 
 	for {
@@ -249,21 +254,22 @@ func main() {
 		case msg := <-messages:
 			// We cannot get container network details once it's stopped, So
 			// we're deleting ufw rules as soon as container receives stop signal before it's stopped.
-			if msg.Type == "container" && (msg.Action == "start" || msg.Action == "kill") {
+			if msg.Action == "start" || msg.Action == "kill" {
 				if ufwManaged := msg.Actor.Attributes["UFW_MANAGED"]; isUfwManaged(ufwManaged) {
 					container, err := cli.ContainerInspect(ctx, msg.ID)
 					if err != nil {
-						fmt.Println("ufw-docker-automated: Couldn't inspect container:", err)
+						log.Println("ufw-docker-automated: Couldn't inspect container:", err)
 						continue
 					}
-					ch <- ufwEvent{container, msg}
+					event := ufwEvent{container: &container, msg: &msg}
+					ch <- &event
 				}
 			}
 		case err := <-errors:
 			if err != nil {
-				fmt.Println("ufw-docker-automated: Received an error:", err)
+				log.Println("ufw-docker-automated: Docker socket error:", err)
 				time.Sleep(5 * time.Second)
-				fmt.Println("ufw-docker-automated: Reconnecting..")
+				log.Println("ufw-docker-automated: Reconnecting..")
 				cli = createClient()
 				messages, errors = addFilters(cli, &ctx)
 			}
