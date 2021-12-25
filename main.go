@@ -37,10 +37,6 @@ func checkCIDR(cidr string) bool {
 	return err == nil
 }
 
-func isUfwManaged(containerLabel string) bool {
-	return strings.ToUpper(containerLabel) == "TRUE"
-}
-
 func handleUfwRule(ch <-chan *ufwEvent) {
 	for event := range ch {
 		containerIP := event.container.NetworkSettings.IPAddress
@@ -233,18 +229,18 @@ func createClient() *client.Client {
 	return cli
 }
 
-func addFilters(cli *client.Client, ctx *context.Context) (<-chan events.Message, <-chan error) {
+func addFilters(client *client.Client, ctx *context.Context) (<-chan events.Message, <-chan error) {
 	_, cancelContext := context.WithCancel(*ctx)
 	cancelContext()
 	filter := filters.NewArgs()
 	filter.Add("type", "container")
-	return cli.Events(*ctx, types.EventsOptions{Filters: filter})
+	return client.Events(*ctx, types.EventsOptions{Filters: filter})
 }
 
 func main() {
-	cli := createClient()
+	client := createClient()
 	ctx := context.Background()
-	messages, errors := addFilters(cli, &ctx)
+	messages, errors := addFilters(client, &ctx)
 
 	ch := make(chan *ufwEvent)
 	go handleUfwRule(ch)
@@ -252,11 +248,9 @@ func main() {
 	for {
 		select {
 		case msg := <-messages:
-			// We cannot get container network details once it's stopped, So
-			// we're deleting ufw rules as soon as container receives stop signal before it's stopped.
 			if msg.Action == "start" || msg.Action == "kill" {
-				if ufwManaged := msg.Actor.Attributes["UFW_MANAGED"]; isUfwManaged(ufwManaged) {
-					container, err := cli.ContainerInspect(ctx, msg.ID)
+				if ufwLabel := msg.Actor.Attributes["UFW_MANAGED"]; strings.ToUpper(ufwLabel) == "TRUE" {
+					container, err := client.ContainerInspect(ctx, msg.ID)
 					if err != nil {
 						log.Println("ufw-docker-automated: Couldn't inspect container:", err)
 						continue
@@ -270,8 +264,8 @@ func main() {
 				log.Println("ufw-docker-automated: Docker socket error:", err)
 				time.Sleep(5 * time.Second)
 				log.Println("ufw-docker-automated: Reconnecting..")
-				cli = createClient()
-				messages, errors = addFilters(cli, &ctx)
+				client = createClient()
+				messages, errors = addFilters(client, &ctx)
 			}
 		}
 	}
