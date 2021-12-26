@@ -42,6 +42,7 @@ func main() {
 
 	go ufwhandler.CreateUfwRule(createChannel, trackedContainers)
 	go ufwhandler.DeleteUfwRule(deleteChannel, trackedContainers)
+	go ufwhandler.Cleanup(client, &ctx)
 
 	for {
 		select {
