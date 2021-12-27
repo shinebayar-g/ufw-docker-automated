@@ -1,0 +1,17 @@
+before:
+  hooks:
+  - go mod tidy
+
+builds:
+  - binary: ufw-docker-automated
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    goarm:
+      - 6
+      - 7

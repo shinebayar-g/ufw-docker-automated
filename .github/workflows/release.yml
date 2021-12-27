@@ -9,17 +9,20 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
       - name: Install Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.17.x
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Verification
-        run: go mod verify
-      - name: Build
-        run: go build -o ufw-docker-automated github.com/shinebayar-g/ufw-docker-automated
-      - name: Release
-        uses: softprops/action-gh-release@v1
+          go-version: 1.17
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v2
         with:
-          files: ufw-docker-automated
+          version: latest
+          args: release --rm-dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
