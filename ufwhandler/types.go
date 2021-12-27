@@ -1,10 +1,5 @@
 package ufwhandler
 
-import (
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/events"
-)
-
 type TrackedContainer struct {
 	Name             string
 	IPAddress        string
@@ -18,9 +13,4 @@ type UfwRule struct {
 	Port    string
 	Proto   string
 	Comment string
-}
-
-type UfwEvent struct {
-	Container *types.ContainerJSON
-	Msg       *events.Message
 }

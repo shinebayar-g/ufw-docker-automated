@@ -33,9 +33,8 @@ func addFilters(client *client.Client, ctx *context.Context) (<-chan events.Mess
 func main() {
 	client := createClient()
 	ctx := context.Background()
-	messages, errors := addFilters(client, &ctx)
 
-	createChannel := make(chan *ufwhandler.UfwEvent)
+	createChannel := make(chan *types.ContainerJSON)
 	deleteChannel := make(chan string)
 
 	trackedContainers := make(map[string]*ufwhandler.TrackedContainer)
@@ -44,6 +43,7 @@ func main() {
 	go ufwhandler.DeleteUfwRule(deleteChannel, trackedContainers)
 	go ufwhandler.Cleanup(client, &ctx)
 
+	messages, errors := addFilters(client, &ctx)
 	for {
 		select {
 		case msg := <-messages:
@@ -54,7 +54,7 @@ func main() {
 						log.Println("ufw-docker-automated: Couldn't inspect container:", err)
 						continue
 					}
-					createChannel <- &ufwhandler.UfwEvent{Container: &container, Msg: &msg}
+					createChannel <- &container
 				}
 				if msg.Action == "kill" {
 					deleteChannel <- msg.ID[:12]

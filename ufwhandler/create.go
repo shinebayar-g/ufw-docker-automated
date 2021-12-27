@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/docker/docker/api/types"
 )
 
 func checkIP(ip string) bool {
@@ -19,15 +21,15 @@ func checkCIDR(cidr string) bool {
 	return err == nil
 }
 
-func CreateUfwRule(ch <-chan *UfwEvent, trackedContainers map[string]*TrackedContainer) {
-	for event := range ch {
-		containerName := event.Msg.Actor.Attributes["name"]
-		containerIP := event.Container.NetworkSettings.IPAddress
-		containerID := event.Msg.ID[:12]
+func CreateUfwRule(ch <-chan *types.ContainerJSON, trackedContainers map[string]*TrackedContainer) {
+	for container := range ch {
+		containerName := strings.Replace(container.Name, "/", "", 1) // container name appears with prefix "/"
+		containerIP := container.NetworkSettings.IPAddress
+		containerID := container.ID[:12]
 		// If docker-compose, container IP is defined here
 		if containerIP == "" {
-			networkMode := event.Container.HostConfig.NetworkMode.NetworkName()
-			if ip, ok := event.Container.NetworkSettings.Networks[networkMode]; ok {
+			networkMode := container.HostConfig.NetworkMode.NetworkName()
+			if ip, ok := container.NetworkSettings.Networks[networkMode]; ok {
 				containerIP = ip.IPAddress
 			} else {
 				log.Println("ufw-docker-automated: Couldn't detect the container IP address.")
@@ -38,18 +40,18 @@ func CreateUfwRule(ch <-chan *UfwEvent, trackedContainers map[string]*TrackedCon
 		trackedContainers[containerID] = &TrackedContainer{
 			Name:      containerName,
 			IPAddress: containerIP,
-			Labels:    event.Container.Config.Labels,
+			Labels:    container.Config.Labels,
 		}
 
 		c := trackedContainers[containerID]
 
 		// Handle inbound rules
-		for port, portMaps := range event.Container.HostConfig.PortBindings {
+		for port, portMaps := range container.HostConfig.PortBindings {
 			// List is non empty if port is published
 			if len(portMaps) > 0 {
 				ufwRules := []UfwRule{}
-				if event.Msg.Actor.Attributes["UFW_ALLOW_FROM"] != "" {
-					ufwAllowFromLabelParsed := strings.Split(event.Msg.Actor.Attributes["UFW_ALLOW_FROM"], ";")
+				if container.Config.Labels["UFW_ALLOW_FROM"] != "" {
+					ufwAllowFromLabelParsed := strings.Split(container.Config.Labels["UFW_ALLOW_FROM"], ";")
 
 					for _, allowFrom := range ufwAllowFromLabelParsed {
 						ip := strings.Split(allowFrom, "-")
@@ -108,11 +110,11 @@ func CreateUfwRule(ch <-chan *UfwEvent, trackedContainers map[string]*TrackedCon
 		}
 
 		// Handle outbound rules
-		if strings.ToUpper(event.Msg.Actor.Attributes["UFW_DENY_OUT"]) == "TRUE" {
+		if container.Config.Labels["UFW_DENY_OUT"] == "TRUE" {
 
-			if event.Msg.Actor.Attributes["UFW_ALLOW_TO"] != "" {
+			if container.Config.Labels["UFW_ALLOW_TO"] != "" {
 				ufwRules := []UfwRule{}
-				ufwAllowToLabelParsed := strings.Split(event.Msg.Actor.Attributes["UFW_ALLOW_TO"], ";")
+				ufwAllowToLabelParsed := strings.Split(container.Config.Labels["UFW_ALLOW_TO"], ";")
 
 				for _, allowTo := range ufwAllowToLabelParsed {
 					ip := strings.Split(allowTo, "-")
