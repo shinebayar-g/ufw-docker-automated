@@ -13,19 +13,22 @@ jobs:
     strategy:
       matrix:
         go-version:
-          - 1.16.x
-          - 1.17.x
+          - 1.18.x
+          - 1.19.x
         platform:
-          - ubuntu-latest
+          - ubuntu-22.04
     runs-on: '${{ matrix.platform }}'
     steps:
       - name: Install Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: '${{ matrix.go-version }}'
+
       - name: Checkout code
         uses: actions/checkout@v2
+
       - name: Verification
         run: go mod verify
+
       - name: Build
         run: go build -o ufw-docker-automated github.com/shinebayar-g/ufw-docker-automated
