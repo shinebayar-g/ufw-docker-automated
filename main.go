@@ -13,26 +13,42 @@ import (
 	"github.com/shinebayar-g/ufw-docker-automated/ufwhandler"
 )
 
-func createClient() *client.Client {
-	cli, err := client.NewClientWithOpts(client.FromEnv)
+func createClient(ctx *context.Context) (*client.Client, error) {
+	client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		panic(err)
+		return client, err
 	}
-	log.Println("ufw-docker-automated: Connecting to the Docker API. Listening for events..")
-	return cli
+	_, err = client.Info(*ctx)
+	return client, err
 }
 
-func addFilters(client *client.Client, ctx *context.Context) (<-chan events.Message, <-chan error) {
-	_, cancelContext := context.WithCancel(*ctx)
-	cancelContext()
+func streamEvents(ctx *context.Context, c *client.Client) (<-chan events.Message, <-chan error) {
 	filter := filters.NewArgs()
 	filter.Add("type", "container")
-	return client.Events(*ctx, types.EventsOptions{Filters: filter})
+	return c.Events(*ctx, types.EventsOptions{Filters: filter})
+}
+
+func reconnect(ctx *context.Context, c *client.Client) {
+	for {
+		time.Sleep(5 * time.Second)
+		log.Println("ufw-docker-automated: Trying to reconnect..")
+		var err error
+		c, err = createClient(ctx)
+		if err == nil {
+			break
+		}
+	}
+	log.Println("ufw-docker-automated: Reconnected to the Docker Engine.")
 }
 
 func main() {
-	client := createClient()
 	ctx := context.Background()
+	client, err := createClient(&ctx)
+	if err != nil {
+		log.Println("ufw-docker-automated: Client error:", err)
+		reconnect(&ctx, client)
+	}
+	log.Println("ufw-docker-automated: Connected to the Docker Engine.")
 
 	createChannel := make(chan *types.ContainerJSON)
 	deleteChannel := make(chan string)
@@ -44,7 +60,7 @@ func main() {
 	go ufwhandler.Cleanup(client, &ctx)
 	go ufwhandler.Sync(createChannel, client, &ctx)
 
-	messages, errors := addFilters(client, &ctx)
+	messages, errors := streamEvents(&ctx, client)
 	for {
 		select {
 		case msg := <-messages:
@@ -57,17 +73,14 @@ func main() {
 					}
 					createChannel <- &container
 				}
-				if msg.Action == "kill" {
+				if msg.Action == "die" {
 					deleteChannel <- msg.ID[:12]
 				}
 			}
 		case err := <-errors:
 			if err != nil {
-				log.Println("ufw-docker-automated: Docker socket error:", err)
-				time.Sleep(5 * time.Second)
-				log.Println("ufw-docker-automated: Reconnecting..")
-				client = createClient()
-				messages, errors = addFilters(client, &ctx)
+				log.Println("ufw-docker-automated: Event error:", err)
+				reconnect(&ctx, client)
 			}
 		}
 	}
