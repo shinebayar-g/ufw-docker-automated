@@ -13,13 +13,14 @@ import (
 	"github.com/shinebayar-g/ufw-docker-automated/ufwhandler"
 )
 
-func createClient(ctx *context.Context) (*client.Client, error) {
+func createClient() (*context.Context, *client.Client, error) {
+	ctx := context.Background()
 	client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return client, err
+		return &ctx, client, err
 	}
-	_, err = client.Info(*ctx)
-	return client, err
+	_, err = client.Info(ctx)
+	return &ctx, client, err
 }
 
 func streamEvents(ctx *context.Context, c *client.Client) (<-chan events.Message, <-chan error) {
@@ -28,28 +29,30 @@ func streamEvents(ctx *context.Context, c *client.Client) (<-chan events.Message
 	return c.Events(*ctx, types.EventsOptions{Filters: filter})
 }
 
-func reconnect(ctx *context.Context, c *client.Client) {
+func reconnect() (*context.Context, *client.Client, error) {
+	var ctx *context.Context
+	var client *client.Client
+	var err error
 	for {
 		time.Sleep(5 * time.Second)
 		log.Println("ufw-docker-automated: Trying to reconnect..")
-		var err error
-		c, err = createClient(ctx)
+		ctx, client, err = createClient()
 		if err == nil {
 			break
 		}
 	}
 	log.Println("ufw-docker-automated: Reconnected to the Docker Engine.")
+	return ctx, client, err
 }
 
 func main() {
-	ctx := context.Background()
-	client, err := createClient(&ctx)
+	ctx, client, err := createClient()
 	if err != nil {
 		log.Println("ufw-docker-automated: Client error:", err)
-		reconnect(&ctx, client)
+		ctx, client, err = reconnect()
+	} else {
+		log.Println("ufw-docker-automated: Connected to the Docker Engine.")
 	}
-	log.Println("ufw-docker-automated: Connected to the Docker Engine.")
-
 	createChannel := make(chan *types.ContainerJSON)
 	deleteChannel := make(chan string)
 
@@ -57,16 +60,16 @@ func main() {
 
 	go ufwhandler.CreateUfwRule(createChannel, trackedContainers)
 	go ufwhandler.DeleteUfwRule(deleteChannel, trackedContainers)
-	go ufwhandler.Cleanup(client, &ctx)
-	go ufwhandler.Sync(createChannel, client, &ctx)
+	go ufwhandler.Cleanup(client, ctx)
+	go ufwhandler.Sync(createChannel, client, ctx)
 
-	messages, errors := streamEvents(&ctx, client)
+	messages, errors := streamEvents(ctx, client)
 	for {
 		select {
 		case msg := <-messages:
 			if ufwManaged := msg.Actor.Attributes["UFW_MANAGED"]; strings.ToUpper(ufwManaged) == "TRUE" {
 				if msg.Action == "start" {
-					container, err := client.ContainerInspect(ctx, msg.ID)
+					container, err := client.ContainerInspect(*ctx, msg.ID)
 					if err != nil {
 						log.Println("ufw-docker-automated: Couldn't inspect container:", err)
 						continue
@@ -80,7 +83,8 @@ func main() {
 		case err := <-errors:
 			if err != nil {
 				log.Println("ufw-docker-automated: Event error:", err)
-				reconnect(&ctx, client)
+				ctx, client, err = reconnect()
+				messages, errors = streamEvents(ctx, client)
 			}
 		}
 	}
