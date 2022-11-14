@@ -2,7 +2,10 @@ module github.com/shinebayar-g/ufw-docker-automated
 
 go 1.19
 
-require github.com/docker/docker v20.10.21+incompatible
+require (
+	github.com/docker/docker v20.10.21+incompatible
+	github.com/patrickmn/go-cache v2.1.0+incompatible
+)
 
 require (
 	github.com/Microsoft/go-winio v0.6.0 // indirect

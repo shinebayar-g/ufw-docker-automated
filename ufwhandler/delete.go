@@ -4,15 +4,18 @@ import (
 	"bytes"
 	"log"
 	"os/exec"
+
+	"github.com/patrickmn/go-cache"
 )
 
-func DeleteUfwRule(containerID <-chan string, trackedContainers map[string]*TrackedContainer) {
+func DeleteUfwRule(containerID <-chan string, c *cache.Cache) {
 	for id := range containerID {
 
-		if c, ok := trackedContainers[id]; ok {
+		if cachedContainer, found := c.Get(id); found {
+			container := cachedContainer.(*TrackedContainer)
 			// Handle inbound rules
-			for _, rule := range c.UfwInboundRules {
-				cmd := exec.Command("sudo", "ufw", "route", "delete", "allow", "proto", rule.Proto, "from", rule.CIDR, "to", c.IPAddress, "port", rule.Port, "comment", c.Name+":"+id+rule.Comment)
+			for _, rule := range container.UfwInboundRules {
+				cmd := exec.Command("sudo", "ufw", "route", "delete", "allow", "proto", rule.Proto, "from", rule.CIDR, "to", container.IPAddress, "port", rule.Port, "comment", container.Name+":"+id+rule.Comment)
 				log.Println("ufw-docker-automated: Deleting rule:", cmd)
 
 				var stdout, stderr bytes.Buffer
@@ -27,12 +30,12 @@ func DeleteUfwRule(containerID <-chan string, trackedContainers map[string]*Trac
 				}
 			}
 			// Handle outbound rules
-			for _, rule := range c.UfwOutboundRules {
+			for _, rule := range container.UfwOutboundRules {
 				var cmd *exec.Cmd
 				if rule.Port == "" {
-					cmd = exec.Command("sudo", "ufw", "route", "delete", "allow", "from", c.IPAddress, "to", rule.CIDR, "comment", c.Name+":"+id+rule.Comment)
+					cmd = exec.Command("sudo", "ufw", "route", "delete", "allow", "from", container.IPAddress, "to", rule.CIDR, "comment", container.Name+":"+id+rule.Comment)
 				} else {
-					cmd = exec.Command("sudo", "ufw", "route", "delete", "allow", "from", c.IPAddress, "to", rule.CIDR, "port", rule.Port, "comment", c.Name+":"+id+rule.Comment)
+					cmd = exec.Command("sudo", "ufw", "route", "delete", "allow", "from", container.IPAddress, "to", rule.CIDR, "port", rule.Port, "comment", container.Name+":"+id+rule.Comment)
 				}
 				log.Println("ufw-docker-automated: Deleting rule:", cmd)
 
@@ -48,7 +51,7 @@ func DeleteUfwRule(containerID <-chan string, trackedContainers map[string]*Trac
 				}
 			}
 			// Handle deny all out
-			cmd := exec.Command("sudo", "ufw", "route", "delete", "deny", "from", c.IPAddress, "to", "any", "comment", c.Name+":"+id)
+			cmd := exec.Command("sudo", "ufw", "route", "delete", "deny", "from", container.IPAddress, "to", "any", "comment", container.Name+":"+id)
 			log.Println("ufw-docker-automated: Deleting rule:", cmd)
 
 			var stdout, stderr bytes.Buffer

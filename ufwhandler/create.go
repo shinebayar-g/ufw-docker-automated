@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/docker/docker/api/types"
+	"github.com/patrickmn/go-cache"
 )
 
 func checkIP(ip string) bool {
@@ -21,7 +22,7 @@ func checkCIDR(cidr string) bool {
 	return err == nil
 }
 
-func CreateUfwRule(ch <-chan *types.ContainerJSON, trackedContainers map[string]*TrackedContainer) {
+func CreateUfwRule(ch <-chan *types.ContainerJSON, c *cache.Cache) {
 	for container := range ch {
 		containerName := strings.Replace(container.Name, "/", "", 1) // container name appears with prefix "/"
 		containerIP := container.NetworkSettings.IPAddress
@@ -37,13 +38,13 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, trackedContainers map[string]
 			}
 		}
 
-		trackedContainers[containerID] = &TrackedContainer{
+		cachedContainer := TrackedContainer{
 			Name:      containerName,
 			IPAddress: containerIP,
 			Labels:    container.Config.Labels,
 		}
 
-		c := trackedContainers[containerID]
+		c.Set(containerID, &cachedContainer, cache.NoExpiration)
 
 		// Handle inbound rules
 		for port, portMaps := range container.HostConfig.PortBindings {
@@ -101,7 +102,7 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, trackedContainers map[string]
 					}
 				}
 
-				c.UfwInboundRules = append(c.UfwInboundRules, ufwRules...)
+				cachedContainer.UfwInboundRules = append(cachedContainer.UfwInboundRules, ufwRules...)
 				// ufw route allow proto tcp from any to 172.17.0.2 port 80 comment "Comment"
 				// ufw route allow proto <tcp|udp> <source> to <container_ip> port <port> comment <comment>
 				// ufw route delete allow proto tcp from any to 172.17.0.2 port 80 comment "Comment"
@@ -167,7 +168,7 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, trackedContainers map[string]
 					}
 				}
 
-				c.UfwOutboundRules = append(c.UfwOutboundRules, ufwRules...)
+				cachedContainer.UfwOutboundRules = append(cachedContainer.UfwOutboundRules, ufwRules...)
 			}
 
 			// Handle deny all out
@@ -185,6 +186,5 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, trackedContainers map[string]
 				log.Println("ufw:", stdout.String())
 			}
 		}
-
 	}
 }

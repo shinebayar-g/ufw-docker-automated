@@ -10,6 +10,7 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+	"github.com/patrickmn/go-cache"
 	"github.com/shinebayar-g/ufw-docker-automated/ufwhandler"
 )
 
@@ -55,13 +56,12 @@ func main() {
 	}
 	createChannel := make(chan *types.ContainerJSON)
 	deleteChannel := make(chan string)
-
-	trackedContainers := make(map[string]*ufwhandler.TrackedContainer)
+	trackedContainers := cache.New(cache.NoExpiration, 0)
 
 	go ufwhandler.CreateUfwRule(createChannel, trackedContainers)
 	go ufwhandler.DeleteUfwRule(deleteChannel, trackedContainers)
-	go ufwhandler.Cleanup(client, ctx)
-	go ufwhandler.Sync(createChannel, client, ctx)
+	// go ufwhandler.Cleanup(client, ctx)
+	// go ufwhandler.Sync(createChannel, client, ctx)
 
 	messages, errors := streamEvents(ctx, client)
 	for {
