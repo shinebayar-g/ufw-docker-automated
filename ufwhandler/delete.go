@@ -51,18 +51,20 @@ func DeleteUfwRule(containerID <-chan string, c *cache.Cache) {
 				}
 			}
 			// Handle deny all out
-			cmd := exec.Command("sudo", "ufw", "route", "delete", "deny", "from", container.IPAddress, "to", "any", "comment", container.Name+":"+id)
-			log.Println("ufw-docker-automated: Deleting outbound rule:", cmd)
+			if container.Labels["UFW_DENY_OUT"] == "TRUE" {
+				cmd := exec.Command("sudo", "ufw", "route", "delete", "deny", "from", container.IPAddress, "to", "any", "comment", container.Name+":"+id)
+				log.Println("ufw-docker-automated: Deleting outbound rule:", cmd)
 
-			var stdout, stderr bytes.Buffer
-			cmd.Stdout = &stdout
-			cmd.Stderr = &stderr
-			err := cmd.Run()
+				var stdout, stderr bytes.Buffer
+				cmd.Stdout = &stdout
+				cmd.Stderr = &stderr
+				err := cmd.Run()
 
-			if err != nil || stderr.String() != "" {
-				log.Println("ufw error:", err, stderr.String())
-			} else {
-				log.Println("ufw:", stdout.String())
+				if err != nil || stderr.String() != "" {
+					log.Println("ufw error:", err, stderr.String())
+				} else {
+					log.Println("ufw:", stdout.String())
+				}
 			}
 		} else {
 			log.Println("ufw-docker-automated: Container information not found in cache.")
