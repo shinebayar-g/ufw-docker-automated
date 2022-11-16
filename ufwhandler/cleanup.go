@@ -6,31 +6,39 @@ import (
 	"context"
 	"log"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/docker/docker/client"
 )
 
+func isValidRule(rule string) bool {
+	valid, err := regexp.MatchString("^ufw route (allow|deny) (.*?)'(.*?):(.*?)'$", rule)
+	if err != nil || !valid {
+		return false
+	}
+	return true
+}
+
 func Cleanup(client *client.Client, ctx *context.Context) {
+	ufwRuleMap := make(map[string][]string)
+
 	cmd := exec.Command("sudo", "ufw", "show", "added")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 
-	ufwRuleMap := make(map[string][]string)
-
 	if err != nil || stderr.String() != "" {
 		log.Println("ufw error:", err, stderr.String())
 	} else {
 		scanner := bufio.NewScanner(strings.NewReader(stdout.String()))
-		scanner.Scan() // Skipping first line that says: "Added user rules (see 'ufw status' for running firewall):"
 		for scanner.Scan() {
 			ufwRule := scanner.Text()
-			if ufwRule != "(None)" { // if ufw is empty it returns "(None)"
-				comment := ufwRule[strings.LastIndex(ufwRule, ":")+1:]      // comment after ":", Example: "a6cc06a1ebdb LAN"
-				containerIDWithQuotes := strings.Split(comment, " ")[0]     // Example: "a6cc06a1ebdb GoogleDNS'" or "a6cc06a1ebdb'"
-				containerID := strings.Split(containerIDWithQuotes, "'")[0] // First element is guaranteed to be container ID
+			if isValidRule(ufwRule) {
+				containerID_comment := ufwRule[strings.LastIndex(ufwRule, ":")+1:]  // comment after ":", Example: "a6cc06a1ebdb LAN"
+				containerIDWithQuotes := strings.Split(containerID_comment, " ")[0] // Example: "a6cc06a1ebdb GoogleDNS'" or "a6cc06a1ebdb'"
+				containerID := strings.Split(containerIDWithQuotes, "'")[0]         // First element is guaranteed to be container ID
 
 				if c, ok := ufwRuleMap[containerID]; ok {
 					ufwRuleMap[containerID] = append(c, ufwRule)
@@ -42,14 +50,9 @@ func Cleanup(client *client.Client, ctx *context.Context) {
 	}
 
 	for containerID, rules := range ufwRuleMap {
-		c, err := client.ContainerInspect(*ctx, containerID)
-		if err != nil {
-			log.Println("ufw-docker-automated: Couldn't inspect container:", err, "Cleaning up ufw rule")
-			clean(rules)
-			continue
-		}
-		if !c.State.Running {
-			log.Println("ufw-docker-automated: Container is not running:", containerID, "Cleaning up ufw rule")
+		container, err := client.ContainerInspect(*ctx, containerID)
+		if err != nil || !container.State.Running {
+			log.Println("ufw-docker-automated: ContainerID='" + containerID + "' doesn't seem to be running. Cleaning up ufw rules.")
 			clean(rules)
 		}
 	}

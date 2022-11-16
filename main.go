@@ -60,7 +60,7 @@ func main() {
 
 	go ufwhandler.CreateUfwRule(createChannel, trackedContainers)
 	go ufwhandler.DeleteUfwRule(deleteChannel, trackedContainers)
-	// go ufwhandler.Cleanup(client, ctx)
+	go ufwhandler.Cleanup(client, ctx)
 	go ufwhandler.Sync(createChannel, client, ctx)
 
 	messages, errors := streamEvents(ctx, client)
