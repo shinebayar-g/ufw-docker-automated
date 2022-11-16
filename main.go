@@ -30,7 +30,7 @@ func streamEvents(ctx *context.Context, c *client.Client) (<-chan events.Message
 	return c.Events(*ctx, types.EventsOptions{Filters: filter})
 }
 
-func reconnect() (*context.Context, *client.Client, error) {
+func reconnect() (*context.Context, *client.Client) {
 	var ctx *context.Context
 	var client *client.Client
 	var err error
@@ -43,14 +43,14 @@ func reconnect() (*context.Context, *client.Client, error) {
 		}
 	}
 	log.Println("ufw-docker-automated: Reconnected to the Docker Engine.")
-	return ctx, client, err
+	return ctx, client
 }
 
 func main() {
 	ctx, client, err := createClient()
 	if err != nil {
 		log.Println("ufw-docker-automated: Client error:", err)
-		ctx, client, err = reconnect()
+		ctx, client = reconnect()
 	} else {
 		log.Println("ufw-docker-automated: Connected to the Docker Engine.")
 	}
@@ -81,7 +81,7 @@ func main() {
 		case err := <-errors:
 			if err != nil {
 				log.Println("ufw-docker-automated: Event error:", err)
-				ctx, client, err = reconnect()
+				ctx, client = reconnect()
 				messages, errors = streamEvents(ctx, client)
 			}
 		}
