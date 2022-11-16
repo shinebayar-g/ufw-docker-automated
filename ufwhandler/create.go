@@ -88,7 +88,7 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, c *cache.Cache) {
 
 				for _, rule := range ufwRules {
 					cmd := exec.Command("sudo", "ufw", "route", "allow", "proto", rule.Proto, "from", rule.CIDR, "to", containerIP, "port", rule.Port, "comment", containerName+":"+containerID+rule.Comment)
-					log.Println("ufw-docker-automated: Adding rule:", cmd)
+					log.Println("ufw-docker-automated: Adding inbound rule:", cmd)
 
 					var stdout, stderr bytes.Buffer
 					cmd.Stdout = &stdout
@@ -154,7 +154,7 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, c *cache.Cache) {
 					} else {
 						cmd = exec.Command("sudo", "ufw", "route", "allow", "from", containerIP, "to", rule.CIDR, "port", rule.Port, "comment", containerName+":"+containerID+rule.Comment)
 					}
-					log.Println("ufw-docker-automated: Adding rule:", cmd)
+					log.Println("ufw-docker-automated: Adding outbound rule:", cmd)
 
 					var stdout, stderr bytes.Buffer
 					cmd.Stdout = &stdout
@@ -173,7 +173,7 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, c *cache.Cache) {
 
 			// Handle deny all out
 			cmd := exec.Command("sudo", "ufw", "route", "deny", "from", containerIP, "to", "any", "comment", containerName+":"+containerID)
-			log.Println("ufw-docker-automated: Adding rule:", cmd)
+			log.Println("ufw-docker-automated: Adding outbound rule:", cmd)
 
 			var stdout, stderr bytes.Buffer
 			cmd.Stdout = &stdout
