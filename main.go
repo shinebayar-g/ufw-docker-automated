@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -27,6 +26,7 @@ func createClient() (*context.Context, *client.Client, error) {
 func streamEvents(ctx *context.Context, c *client.Client) (<-chan events.Message, <-chan error) {
 	filter := filters.NewArgs()
 	filter.Add("type", "container")
+	filter.Add("label", "UFW_MANAGED=TRUE")
 	return c.Events(*ctx, types.EventsOptions{Filters: filter})
 }
 
@@ -67,18 +67,16 @@ func main() {
 	for {
 		select {
 		case msg := <-messages:
-			if ufwManaged := msg.Actor.Attributes["UFW_MANAGED"]; strings.ToUpper(ufwManaged) == "TRUE" {
-				if msg.Action == "start" {
-					container, err := client.ContainerInspect(*ctx, msg.ID)
-					if err != nil {
-						log.Println("ufw-docker-automated: Couldn't inspect container:", err)
-						continue
-					}
-					createChannel <- &container
+			if msg.Action == "start" {
+				container, err := client.ContainerInspect(*ctx, msg.ID)
+				if err != nil {
+					log.Println("ufw-docker-automated: Couldn't inspect container:", err)
+					continue
 				}
-				if msg.Action == "die" {
-					deleteChannel <- msg.ID[:12]
-				}
+				createChannel <- &container
+			}
+			if msg.Action == "die" {
+				deleteChannel <- msg.ID[:12]
 			}
 		case err := <-errors:
 			if err != nil {

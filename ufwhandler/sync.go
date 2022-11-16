@@ -5,14 +5,11 @@ import (
 	"log"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 )
 
 func Sync(createChannel chan *types.ContainerJSON, client *client.Client, ctx *context.Context) {
-	var filter = filters.NewArgs()
-	filter.Add("label", "UFW_MANAGED=TRUE")
-	containers, err := client.ContainerList(*ctx, types.ContainerListOptions{Filters: filter})
+	containers, err := client.ContainerList(*ctx, types.ContainerListOptions{})
 	if err != nil {
 		log.Println(err)
 	}
