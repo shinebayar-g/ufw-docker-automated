@@ -20,7 +20,7 @@ func isValidRule(rule string) bool {
 	return true
 }
 
-func Cleanup(client *client.Client, ctx *context.Context) {
+func Cleanup(ctx *context.Context, client *client.Client) {
 	ufwRuleMap := make(map[string][]string)
 
 	cmd := exec.Command("sudo", "ufw", "show", "added")

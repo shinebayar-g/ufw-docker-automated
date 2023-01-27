@@ -9,7 +9,7 @@ import (
 	"github.com/docker/docker/client"
 )
 
-func Sync(createChannel chan *types.ContainerJSON, client *client.Client, ctx *context.Context) {
+func Sync(ctx *context.Context, createChannel chan *types.ContainerJSON, client *client.Client) {
 	// Returns only running containers
 	filter := filters.NewArgs()
 	filter.Add("label", "UFW_MANAGED=TRUE")
