@@ -122,7 +122,7 @@ Once containers are stopped their ufw entries will be deleted.
 
 Open up `/etc/ufw/after.rules` file and add following code to the bottom of the file.
 
-```
+```conf
 # BEGIN UFW AND DOCKER
 *filter
 :ufw-user-forward - [0:0]
@@ -154,7 +154,7 @@ COMMIT
 
 **Step 2**. Reload your ufw service to take effect of new configuration.
 
-```
+```sh
 sudo ufw reload
 
 # or
@@ -174,7 +174,7 @@ Download the [latest release](https://github.com/shinebayar-g/ufw-docker-automat
 
 To manage ufw rules, binary has to run as a root privileged user.
 
-```
+```sh
 chmod +x ./ufw-docker-automated
 ./ufw-docker-automated
 ```
@@ -184,7 +184,7 @@ If you use **systemd** service manager _(Default since Ubuntu 16.04, Debian 8)_,
 
 Create and open new file on the following path `/lib/systemd/system/ufw-docker-automated.service` and copy the following content, don't forget to update the binary path.
 
-```
+```ini
 [Unit]
 Description=Ufw docker automated
 Documentation=https://github.com/shinebayar-g/ufw-docker-automated
@@ -205,7 +205,7 @@ WantedBy=multi-user.target
 
 Then reload the systemd.
 
-```
+```sh
 sudo systemctl daemon-reload
 sudo systemctl enable ufw-docker-automated
 sudo systemctl start ufw-docker-automated
