@@ -82,6 +82,7 @@ func main() {
 			if err != nil {
 				log.Println("ufw-docker-automated: Event error:", err)
 				ctx, client = reconnect()
+				go ufwhandler.Sync(ctx, createChannel, client)
 				messages, errors = streamEvents(ctx, client)
 			}
 		}
