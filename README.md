@@ -214,3 +214,14 @@ sudo systemctl start ufw-docker-automated
 ## Feedback
 
 If you encounter any issues please feel free to open an [issue](https://github.com/shinebayar-g/ufw-docker-automated/issues).
+
+## Build
+
+Requirements:
+
+- go 1.19 >=
+
+```sh
+git clone https://github.com/shinebayar-g/ufw-docker-automated.git
+go build -o ufw-docker-automated github.com/shinebayar-g/ufw-docker-automated
+```
