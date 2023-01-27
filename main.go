@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -10,6 +9,8 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/patrickmn/go-cache"
+	"github.com/rs/zerolog/log"
+	"github.com/shinebayar-g/ufw-docker-automated/logger"
 	"github.com/shinebayar-g/ufw-docker-automated/ufwhandler"
 )
 
@@ -36,23 +37,24 @@ func reconnect() (*context.Context, *client.Client) {
 	var err error
 	for {
 		time.Sleep(5 * time.Second)
-		log.Println("ufw-docker-automated: Trying to reconnect..")
+		log.Info().Msg("ufw-docker-automated: Trying to reconnect..")
 		ctx, client, err = createClient()
 		if err == nil {
 			break
 		}
 	}
-	log.Println("ufw-docker-automated: Reconnected to the Docker Engine.")
+	log.Info().Msg("ufw-docker-automated: Reconnected to the Docker Engine.")
 	return ctx, client
 }
 
 func main() {
+	logger.SetupLogger()
 	ctx, client, err := createClient()
 	if err != nil {
-		log.Println("ufw-docker-automated: Client error:", err)
+		log.Error().Err(err).Msg("ufw-docker-automated: Client error.")
 		ctx, client = reconnect()
 	} else {
-		log.Println("ufw-docker-automated: Connected to the Docker Engine.")
+		log.Info().Msg("ufw-docker-automated: Connected to the Docker Engine.")
 	}
 	createChannel := make(chan *types.ContainerJSON)
 	deleteChannel := make(chan string)
@@ -70,7 +72,7 @@ func main() {
 			if msg.Action == "start" {
 				container, err := client.ContainerInspect(*ctx, msg.ID)
 				if err != nil {
-					log.Println("ufw-docker-automated: Couldn't inspect container:", err)
+					log.Error().Err(err).Msg("ufw-docker-automated: Couldn't inspect container.")
 					continue
 				}
 				createChannel <- &container
@@ -80,7 +82,7 @@ func main() {
 			}
 		case err := <-errors:
 			if err != nil {
-				log.Println("ufw-docker-automated: Event error:", err)
+				log.Error().Err(err).Msg("ufw-docker-automated: Event error.")
 				ctx, client = reconnect()
 				go ufwhandler.Sync(ctx, createChannel, client)
 				messages, errors = streamEvents(ctx, client)

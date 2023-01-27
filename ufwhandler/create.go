@@ -3,7 +3,6 @@ package ufwhandler
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"net"
 	"os/exec"
 	"strconv"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/patrickmn/go-cache"
+	"github.com/rs/zerolog/log"
 )
 
 func checkIP(ip string) bool {
@@ -33,7 +33,7 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, c *cache.Cache) {
 			if ip, ok := container.NetworkSettings.Networks[networkMode]; ok {
 				containerIP = ip.IPAddress
 			} else {
-				log.Println("ufw-docker-automated: Couldn't detect the container IP address.")
+				log.Error().Msg("ufw-docker-automated: Couldn't detect the container IP address.")
 				continue
 			}
 		}
@@ -88,7 +88,7 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, c *cache.Cache) {
 
 				for _, rule := range ufwRules {
 					cmd := exec.Command("sudo", "ufw", "route", "allow", "proto", rule.Proto, "from", rule.CIDR, "to", containerIP, "port", rule.Port, "comment", containerName+":"+containerID+rule.Comment)
-					log.Println("ufw-docker-automated: Adding inbound rule:", cmd)
+					log.Info().Msg("ufw-docker-automated: Adding inbound rule: " + cmd.String())
 
 					var stdout, stderr bytes.Buffer
 					cmd.Stdout = &stdout
@@ -96,9 +96,9 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, c *cache.Cache) {
 					err := cmd.Run()
 
 					if err != nil || stderr.String() != "" {
-						log.Println("ufw error:", err, stderr.String())
+						log.Error().Err(err).Msg("ufw error: " + stderr.String())
 					} else {
-						log.Println("ufw:", stdout.String())
+						log.Info().Msg("ufw: " + stdout.String())
 					}
 				}
 
@@ -154,7 +154,7 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, c *cache.Cache) {
 					} else {
 						cmd = exec.Command("sudo", "ufw", "route", "allow", "from", containerIP, "to", rule.CIDR, "port", rule.Port, "comment", containerName+":"+containerID+rule.Comment)
 					}
-					log.Println("ufw-docker-automated: Adding outbound rule:", cmd)
+					log.Info().Msg("ufw-docker-automated: Adding outbound rule: " + cmd.String())
 
 					var stdout, stderr bytes.Buffer
 					cmd.Stdout = &stdout
@@ -162,9 +162,9 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, c *cache.Cache) {
 					err := cmd.Run()
 
 					if err != nil || stderr.String() != "" {
-						log.Println("ufw error:", err, stderr.String())
+						log.Error().Err(err).Msg("ufw error: " + stderr.String())
 					} else {
-						log.Println("ufw:", stdout.String())
+						log.Info().Msg("ufw: " + stdout.String())
 					}
 				}
 
@@ -173,7 +173,7 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, c *cache.Cache) {
 
 			// Handle deny all out
 			cmd := exec.Command("sudo", "ufw", "route", "deny", "from", containerIP, "to", "any", "comment", containerName+":"+containerID)
-			log.Println("ufw-docker-automated: Adding outbound rule:", cmd)
+			log.Info().Msg("ufw-docker-automated: Adding outbound rule: " + cmd.String())
 
 			var stdout, stderr bytes.Buffer
 			cmd.Stdout = &stdout
@@ -181,9 +181,9 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, c *cache.Cache) {
 			err := cmd.Run()
 
 			if err != nil || stderr.String() != "" {
-				log.Println("ufw error:", err, stderr.String())
+				log.Error().Err(err).Msg("ufw error: " + stderr.String())
 			} else {
-				log.Println("ufw:", stdout.String())
+				log.Info().Msg("ufw: " + stdout.String())
 			}
 		}
 	}

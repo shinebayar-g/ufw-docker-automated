@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"log"
 	"os/exec"
 	"regexp"
 	"strings"
 
 	"github.com/docker/docker/client"
+	"github.com/rs/zerolog/log"
 )
 
 func isValidRule(rule string) bool {
@@ -30,7 +30,7 @@ func Cleanup(ctx *context.Context, client *client.Client) {
 	err := cmd.Run()
 
 	if err != nil || stderr.String() != "" {
-		log.Println("ufw error:", err, stderr.String())
+		log.Error().Err(err).Msg("ufw error: " + stderr.String())
 	} else {
 		scanner := bufio.NewScanner(strings.NewReader(stdout.String()))
 		for scanner.Scan() {
@@ -52,7 +52,7 @@ func Cleanup(ctx *context.Context, client *client.Client) {
 	for containerID, rules := range ufwRuleMap {
 		container, err := client.ContainerInspect(*ctx, containerID)
 		if err != nil || !container.State.Running {
-			log.Println("ufw-docker-automated: ContainerID='" + containerID + "' doesn't seem to be running. Cleaning up ufw rules.")
+			log.Error().Err(err).Msg("ufw-docker-automated: ContainerID='" + containerID + "' doesn't seem to be running. Cleaning up ufw rules.")
 			clean(rules)
 		}
 	}
@@ -61,7 +61,7 @@ func Cleanup(ctx *context.Context, client *client.Client) {
 func clean(rules []string) {
 	for _, rule := range rules {
 		cmd := exec.Command("sh", "-c", "sudo ufw route delete "+rule[10:]) // trimming first couple of words "ufw route " to fit delete command
-		log.Println("ufw-docker-automated: Deleting rule:", rule)
+		log.Info().Msg("ufw-docker-automated: Deleting rule: " + rule)
 
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
@@ -69,9 +69,9 @@ func clean(rules []string) {
 		err := cmd.Run()
 
 		if err != nil || stderr.String() != "" {
-			log.Println("ufw error:", err, stderr.String())
+			log.Error().Err(err).Msg("ufw error: " + stderr.String())
 		} else {
-			log.Println("ufw:", stdout.String())
+			log.Info().Msg("ufw: " + stdout.String())
 		}
 	}
 }
