@@ -46,7 +46,15 @@ func CreateUfwRule(ch <-chan *types.ContainerJSON, c *cache.Cache) {
 		c.Set(containerID, &cachedContainer, cache.NoExpiration)
 
 		// Handle inbound rules
+		inboundLoop:
 		for port, portMaps := range container.HostConfig.PortBindings {
+			// If port is in UFW_IGNORE_PORTS, leave it alone
+			for _, i := range strings.Split(container.Config.Labels["UFW_IGNORE_PORTS"], ";") {
+				if i == port.Port() {
+					continue inboundLoop
+				}
+			}
+
 			// List is non empty if port is published
 			if len(portMaps) > 0 {
 				ufwRules := []UfwRule{}

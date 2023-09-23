@@ -18,15 +18,17 @@ This project solves that problem by listening to the Docker API events.
 - Zero dependency, single binary installation
 - Supports docker-compose
 - Supports both inbound/outbound rules
+- Selectively allow only certain published ports
 
 ## Supported labels
 
-| Label key      | Value / Syntax                                                   | Example                                                     |
-| -------------- | ---------------------------------------------------------------- | ----------------------------------------------------------- |
-| UFW_MANAGED    | TRUE _(Required for all rules)_                                  | `-l UFW_MANAGED=TRUE`                                       |
-| UFW_ALLOW_FROM | CIDR/IP-SpecificPort-Comment , Semicolon separated, default=any  | `-l UFW_ALLOW_FROM=192.168.3.0/24-LAN;10.10.0.50/32-53-DNS` |
-| UFW_DENY_OUT   | TRUE _(Required if outbound rules are defined)_                  | `-l UFW_DENY_OUT=TRUE`                                      |
-| UFW_ALLOW_TO   | CIDR/IP-SpecificPort-Comment , Semicolon separated, default=none | `-l UFW_ALLOW_TO=192.168.3.0/24-LAN;10.10.0.50/32-53-DNS`   |
+| Label key        | Value / Syntax                                                   | Example                                                     |
+| --------------   | ---------------------------------------------------------------- | ----------------------------------------------------------- |
+| UFW_MANAGED      | TRUE _(Required for all rules)_                                  | `-l UFW_MANAGED=TRUE`                                       |
+| UFW_ALLOW_FROM   | CIDR/IP-SpecificPort-Comment , Semicolon separated, default=any  | `-l UFW_ALLOW_FROM=192.168.3.0/24-LAN;10.10.0.50/32-53-DNS` |
+| UFW_DENY_OUT     | TRUE _(Required if outbound rules are defined)_                  | `-l UFW_DENY_OUT=TRUE`                                      |
+| UFW_ALLOW_TO     | CIDR/IP-SpecificPort-Comment , Semicolon separated, default=none | `-l UFW_ALLOW_TO=192.168.3.0/24-LAN;10.10.0.50/32-53-DNS`   |
+| UFW_IGNORE_PORTS | Container port, Semicolon separated, default=none                | `-l UFW_IGNORE_PORTS=22;80`                                 |
 
 ## Example
 
@@ -39,11 +41,13 @@ services:
     ports:
       - '8080:80'
       - '8081:81'
+      - '8082:82'
     labels:
       UFW_MANAGED: 'TRUE'
       UFW_ALLOW_FROM: '172.10.50.32;192.168.3.0/24;10.10.0.50/32-8080-LAN'
       UFW_DENY_OUT: 'TRUE'
       UFW_ALLOW_TO: '8.8.8.8-53-GoogleDNS;1.1.1.0/24-53-CloudflareDNS;192.168.10.24-8080-LAN'
+      UFW_IGNORE_PORTS: '82'
     networks:
       - my-network
 
