@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
@@ -41,5 +40,5 @@ func StreamEvents(ctx *context.Context, c *client.Client) (<-chan events.Message
 	filter := filters.NewArgs()
 	filter.Add("type", "container")
 	filter.Add("label", "UFW_MANAGED=TRUE")
-	return c.Events(*ctx, types.EventsOptions{Filters: filter})
+	return c.Events(*ctx, events.ListOptions{Filters: filter})
 }

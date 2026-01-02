@@ -21,3 +21,4 @@
 
 *.code-workspace
 .vagrant
+ufw-docker-automated
