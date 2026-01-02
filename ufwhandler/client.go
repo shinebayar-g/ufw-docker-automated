@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	//"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
@@ -38,11 +38,8 @@ func Reconnect() (*context.Context, *client.Client) {
 }
 
 func StreamEvents(ctx *context.Context, c *client.Client) (<-chan events.Message, <-chan error) {
-    filter := filters.NewArgs()
-    filter.Add("type", "container")
-    filter.Add("label", "UFW_MANAGED=TRUE")
-
-    return c.Events(*ctx, events.ListOptions{
-        Filters: filter,
-    })
+	filter := filters.NewArgs()
+	filter.Add("type", "container")
+	filter.Add("label", "UFW_MANAGED=TRUE")
+	return c.Events(*ctx, types.EventsOptions{Filters: filter})
 }
